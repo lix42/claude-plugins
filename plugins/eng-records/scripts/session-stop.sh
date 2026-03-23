@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ENG_DIR="/Users/li.xu/Library/CloudStorage/GoogleDrive-devlix42@gmail.com/My Drive/Documents/engineering"
-RECORDS_DIR="$ENG_DIR/records"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPT_DIR/common.sh"
 
 # Read hook input from stdin
 INPUT=$(cat)
@@ -14,7 +14,7 @@ if [ -z "$SESSION_ID" ]; then
 fi
 
 # Find record file for this session
-RECORD=$(grep -rl "session_id: $SESSION_ID" "$RECORDS_DIR"/*.md 2>/dev/null | head -1 || true)
+RECORD=$(find_record_by_session "$SESSION_ID")
 if [ -z "$RECORD" ]; then
   exit 0
 fi

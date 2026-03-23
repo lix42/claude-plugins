@@ -8,10 +8,16 @@ user-invocable: true
 
 You are helping the user finalize an engineering session record and create a review document.
 
+## Resolving Paths
+
+First, read `~/.claude/eng-records.conf` to get the configured directories. If the file doesn't exist, use defaults:
+- `RECORDS_DIR`: `~/.claude/eng-records/records`
+- `REVIEWS_DIR`: `~/.claude/eng-records/reviews`
+
 ## Steps
 
 1. **Find the current session's record file:**
-   - Search for files matching the current session ID in: `/Users/li.xu/Library/CloudStorage/GoogleDrive-devlix42@gmail.com/My Drive/Documents/engineering/records/`
+   - Search for files matching the current session ID in the RECORDS_DIR
    - Use `grep -rl "session_id: $SESSION_ID"` or search for the most recent `status: active` file
    - If you can't determine the session ID, find the most recently modified `.md` file in the records directory
 
@@ -20,7 +26,7 @@ You are helping the user finalize an engineering session record and create a rev
 3. **Update the record's frontmatter:** Change `status: active` to `status: done`.
 
 4. **Generate or update the review document:**
-   - Check `/Users/li.xu/Library/CloudStorage/GoogleDrive-devlix42@gmail.com/My Drive/Documents/engineering/reviews/` for an existing review that covers the same project/work
+   - Check REVIEWS_DIR for an existing review that covers the same project/work
    - If one exists, update it with new information from this session
    - If not, create a new review doc
 

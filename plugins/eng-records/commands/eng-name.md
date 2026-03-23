@@ -9,13 +9,17 @@ args: name - The name to assign to this session record
 
 You are helping the user set a friendly name on the current session's engineering record.
 
+## Resolving Paths
+
+First, read `~/.claude/eng-records.conf` to get the configured directories. If the file doesn't exist, use defaults:
+- `RECORDS_DIR`: `~/.claude/eng-records/records`
+
 ## Steps
 
 1. The user provides a name as the argument: `$ARGUMENTS`
 
 2. **Find the current session's record file:**
-   - Search in: `/Users/li.xu/Library/CloudStorage/GoogleDrive-devlix42@gmail.com/My Drive/Documents/engineering/records/`
-   - Look for the file matching the current session ID, or the most recently modified `status: active` file
+   - Search in RECORDS_DIR for the file matching the current session ID, or the most recently modified `status: active` file
 
 3. **Update the frontmatter:** Change `name: ""` (or whatever the current name is) to `name: <user's name>`
 

@@ -8,6 +8,12 @@ user-invocable: false
 
 You are helping the user create or update an engineering review document from session record files. These review docs are used for behavioral interviews and promotion documents, so focus on engineering decisions, trade-offs, and demonstrated skills.
 
+## Resolving Paths
+
+First, read `~/.claude/eng-records.conf` to get the configured directories. If the file doesn't exist, use defaults:
+- `RECORDS_DIR`: `~/.claude/eng-records/records`
+- `REVIEWS_DIR`: `~/.claude/eng-records/reviews`
+
 ## Input
 
 The user may provide:
@@ -15,16 +21,11 @@ The user may provide:
 - A session name or partial match
 - Nothing (use the most recent active/done record)
 
-## Finding Records
-
-Records are in: `/Users/li.xu/Library/CloudStorage/GoogleDrive-devlix42@gmail.com/My Drive/Documents/engineering/records/`
-Reviews go in: `/Users/li.xu/Library/CloudStorage/GoogleDrive-devlix42@gmail.com/My Drive/Documents/engineering/reviews/`
-
 ## Process
 
 1. **Find and read** the record file(s). If the user specifies a name, search frontmatter `name:` fields. Otherwise use the most recent file.
 
-2. **Check for existing review:** Search the reviews directory for a doc covering the same project or work topic. If found, you'll update it rather than create a new one.
+2. **Check for existing review:** Search REVIEWS_DIR for a doc covering the same project or work topic. If found, you'll update it rather than create a new one.
 
 3. **Analyze the session record** for:
    - Key engineering decisions and why they were made
