@@ -1,0 +1,16 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "lix42",
+  "description": "Personal Claude Code plugins by lix42",
+  "owner": {
+    "name": "li.xu"
+  },
+  "plugins": [
+    {
+      "name": "eng-records",
+      "description": "Automatically records engineering sessions and generates review documents",
+      "source": "./plugins/eng-records",
+      "category": "productivity"
+    }
+  ]
+}
