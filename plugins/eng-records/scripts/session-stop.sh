@@ -22,7 +22,7 @@ fi
 # Extract last assistant message from transcript
 if [ -n "$TRANSCRIPT_PATH" ] && [ -f "$TRANSCRIPT_PATH" ]; then
   # Get the last assistant message, extract text content, truncate to 300 chars
-  SUMMARY=$(tac "$TRANSCRIPT_PATH" \
+  SUMMARY=$(tail -r "$TRANSCRIPT_PATH" \
     | jq -r 'select(.type == "assistant") | .message.content[]? | select(.type == "text") | .text' 2>/dev/null \
     | head -1 \
     | head -c 300 || true)
