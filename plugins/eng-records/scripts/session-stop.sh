@@ -22,16 +22,17 @@ fi
 LAST_MSG=$(echo "$INPUT" | jq -r '.last_assistant_message // empty')
 
 if [ -n "$LAST_MSG" ]; then
-  # Truncate to 300 chars
-  SUMMARY=$(printf '%s' "$LAST_MSG" | head -c 300)
+  if [ ${#LAST_MSG} -le 1000 ]; then
+    SUMMARY="$LAST_MSG"
+  else
+    SUMMARY=$(printf '%s' "$LAST_MSG" | claude -p --max-tokens 300 \
+      "Summarize this in 2-4 sentences, focusing on what was accomplished:" 2>/dev/null) \
+      || SUMMARY="$(printf '%s' "$LAST_MSG" | head -c 1000)..."
+  fi
   TIMESTAMP=$(date +%H:%M:%S)
   {
     printf '\n## [%s] Claude\n' "$TIMESTAMP"
-    printf '%s' "$SUMMARY"
-    if [ ${#LAST_MSG} -gt 300 ]; then
-      printf '...'
-    fi
-    printf '\n'
+    printf '%s\n' "$SUMMARY"
   } >> "$RECORD"
 fi
 
