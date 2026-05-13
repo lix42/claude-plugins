@@ -1,54 +1,85 @@
 ---
-description: Generate or update an engineering review document from a session record file. Use when the user says things like "create a review doc", "write up the engineering review", "generate review from record", or "update the review doc for this work".
+description: Generate or update engineering review documents from one or more session record files. Use when the user says things like "create a review doc", "write up the engineering review", "generate review from record", or "update the review doc for this work".
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 user-invocable: false
 ---
 
 # Create Engineering Review Document
 
-You are helping the user create or update an engineering review document from session record files. These review docs are used for behavioral interviews and promotion documents, so focus on engineering decisions, trade-offs, and demonstrated skills.
+You are helping the user create or update engineering review documents from session record files. These review docs are used for behavioral interviews and promotion documents, so focus on engineering decisions, trade-offs, and demonstrated skills.
 
 ## Resolving Paths
 
-First, read `~/.claude/eng-records.conf` to get the configured directories. If the file doesn't exist, use defaults:
+Read `~/.claude/eng-records.conf` to get the configured directories. If the file doesn't exist, use defaults:
 - `RECORDS_DIR`: `~/.claude/eng-records/records`
 - `REVIEWS_DIR`: `~/.claude/eng-records/reviews`
 
 ## Input
 
-The user may provide:
-- A specific record file path
-- A session name or partial match
-- Nothing (use the most recent active/done record)
+You will be given a list of record file paths to review (the caller resolves any user inputs into concrete paths before invoking this skill). If only one record is given, skip the grouping step and write a single review.
 
 ## Process
 
-1. **Find and read** the record file(s). If the user specifies a name, search frontmatter `name:` fields. Otherwise use the most recent file.
+### 1. Read all input records
 
-2. **Check for existing review:** Search REVIEWS_DIR for a doc covering the same project or work topic. If found, you'll update it rather than create a new one.
+For each record file, read its frontmatter (`session_id`, `name`, `project`, `started`, `status`, `review`, plus the branch from filename `yyyy-mm-dd-{project}-{branch}-{seq}.md`) and the full body. Hold this in memory for grouping.
 
-3. **Analyze the session record** for:
-   - Key engineering decisions and why they were made
-   - Trade-offs considered
-   - Problems encountered and how they were solved
-   - Technical patterns and approaches used
-   - **Complexity signals:** What made the work non-trivial? Ambiguity, system scope, risk, constraints
-   - **Leadership signals:** Ownership, initiative, driving direction, autonomous judgment, risk identification, setting patterns, proposing better approaches
-   - **Impact signals:** Quantifiable outcomes, before/after improvements, what was unblocked
-   - **AI-augmentation signals:** Using agents for parallel research, running specialized review agents, building AI-native tooling/automation, directing agent work with human judgment (pushing back, providing constraints, synthesizing output)
-   - Skills demonstrated (system design, debugging, performance optimization, etc.)
+### 2. Group records that belong to the same work
 
-   When writing, be assertive and specific. Frame accomplishments in terms of the engineering judgment and strength they demonstrate. This document is used for behavioral interviews and promotion packets — it should make the engineer look strong.
+Two records belong to the same review when **any** of these is true:
 
-4. **Write the review doc** using this structure:
+1. **Same `name:`** — both have a non-empty `name:` and they match (case-insensitive). This is the strongest signal because the user set it deliberately.
+2. **Same project + branch + adjacent dates** — same `project:` value AND same branch (from filename) AND their `started:` dates are within 7 days of each other.
+3. **Same project + clear topical overlap** — same `project:` AND the body content clearly discusses the same feature/bug/files (same file paths touched, same module names, same error being fixed). Apply this rule with judgment; do not merge merely because two sessions touched the same large repo.
+
+Otherwise the records belong to separate reviews.
+
+Apply the rules transitively: if A groups with B, and B groups with C, then {A, B, C} form one group even if A and C don't directly match.
+
+### 3. Print the grouping plan
+
+Before writing anything, output the plan in this form so the user can interrupt if it's wrong:
+
+```
+Group 1 (<short label, e.g., the shared name or inferred topic>):
+  - <record path>
+  - <record path>
+  → <review path> (new | update)
+
+Group 2 (<label>):
+  - <record path>
+  → <review path> (new | update)
+```
+
+For each group, decide the review path:
+- If any record in the group already has a `review:` pointer in its frontmatter, target that path and `update`.
+- Else, search `REVIEWS_DIR` for an existing review whose `sessions:` list overlaps with any record in the group, or whose topic clearly matches. Target that path and `update`.
+- Else, create a new path: `<project>_<brief-topic>.md` (e.g., `tv_auth-middleware-rewrite.md`).
+
+### 4. For each group, write or update the review
+
+Analyze the combined records in the group for:
+- Key engineering decisions and why they were made
+- Trade-offs considered
+- Problems encountered and how they were solved
+- Technical patterns and approaches used
+- **Complexity signals:** ambiguity, system scope, risk, constraints
+- **Leadership signals:** ownership, initiative, driving direction, autonomous judgment, risk identification, setting patterns, proposing better approaches
+- **Impact signals:** quantifiable outcomes, before/after improvements, what was unblocked
+- **AI-augmentation signals:** using agents for parallel research, running specialized review agents, building AI-native tooling/automation, directing agent work with human judgment (pushing back, providing constraints, synthesizing output)
+- Skills demonstrated (system design, debugging, performance optimization, etc.)
+
+When writing, be assertive and specific. Frame accomplishments in terms of the engineering judgment and strength they demonstrate. This document is used for behavioral interviews and promotion packets — it should make the engineer look strong.
+
+**Review doc structure:**
 
 ```markdown
 ---
 project: <project name>
-date_range: <first session date> — <last session date>
+date_range: <earliest record date> — <latest record date>
 status: draft
 tags: [relevant tech/skill tags]
-sessions: [list of source record filenames]
+sessions: [list of source record filenames, sorted by date]
 ---
 
 # <Descriptive Title of the Work>
@@ -84,8 +115,21 @@ sessions: [list of source record filenames]
 <Bullet list framed as behavioral evidence. For each strength, briefly note the situation and action that demonstrated it. Examples: system design, debugging under pressure, trade-off analysis, technical communication, risk management, simplifying complexity, delivering under constraints.>
 ```
 
-5. **If updating an existing review:** Merge new information into existing sections. Add new decisions, challenges, etc. Update the date range and sessions list. Don't duplicate content.
+**If updating an existing review:** merge new information into existing sections — add new decisions, challenges, and strengths rather than replacing. Update `date_range` to span all records, extend `sessions:` with the new filenames (deduped, sorted), and don't duplicate content.
 
-6. **Name the review file** descriptively: `<project>_<brief-topic>.md` (e.g., `tv_auth-middleware-rewrite.md`)
+### 5. Stamp each consumed record with the review pointer
 
-7. Tell the user the review doc path and give a brief summary of what was captured.
+After writing the review for a group, update each source record's frontmatter to add (or overwrite):
+
+```yaml
+review: <absolute path to the review file>
+```
+
+This makes re-runs idempotent and lets `/eng-review` with no arguments find un-reviewed records by looking for records missing the `review:` key.
+
+### 6. Report to the user
+
+For each group, print:
+- The review path and whether it was created or updated.
+- A one-sentence summary of what was captured.
+- The list of records stamped with the back-pointer.
