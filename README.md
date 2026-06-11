@@ -24,7 +24,8 @@ Then enable individual plugins under `enabledPlugins`:
 ```json
 {
   "enabledPlugins": {
-    "eng-records@lix42": true
+    "eng-records@lix42": true,
+    "tasks@lix42": true
   }
 }
 ```
@@ -124,3 +125,36 @@ When you run `/eng-done` or `/eng-review`, a review document is generated in the
 - Skills demonstrated
 
 These are structured for use in behavioral interviews and promotion documents.
+
+### tasks
+
+Plan a project into a `docs/TASKS.md` index plus one file per task under
+`docs/tasks/`, connected by a dependency graph — so you always know what's ready
+to work on next.
+
+#### Layout it manages
+
+```
+docs/
+  TASKS.md           # design summary + dependency graph + task checklist
+  tasks/<name>.md    # one file per task (goal, design, how to verify, deps)
+  design.md          # optional: full design spec if it outgrows TASKS.md
+```
+
+`TASKS.md` has three sections: a concise **Design**, a **Dependencies** graph
+(Mermaid diagram + a machine-readable list that's the source of truth for what's
+unblocked), and the **Tasks** checklist (`[ ]` todo · `[~]` in progress · `[x]`
+done), optionally grouped into phases.
+
+#### Commands
+
+| Command | Description |
+|---------|-------------|
+| `/tasks-setup [requirement]` | Interview, agree on a design, split into tasks, and (after approval) write `TASKS.md` + task files |
+| `/tasks-next` | List tasks whose dependencies are all done, with priority and parallelism suggestions |
+| `/tasks-update [change]` | Add/remove/split/change tasks and keep the dependency graph consistent |
+| `/tasks-done [task]` | Mark a task complete and show what it just unblocked |
+
+The bundled `task-tracking` skill also triggers automatically when you ask about
+the plan, what to work on next, or say a piece of work is done — so you don't have
+to remember the commands.

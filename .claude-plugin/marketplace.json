@@ -11,6 +11,12 @@
       "description": "Automatically records engineering sessions and generates review documents",
       "source": "./plugins/eng-records",
       "category": "productivity"
+    },
+    {
+      "name": "tasks",
+      "description": "Plan and track development work as a docs/TASKS.md index plus per-task files connected by a dependency graph",
+      "source": "./plugins/tasks",
+      "category": "productivity"
     }
   ]
 }
