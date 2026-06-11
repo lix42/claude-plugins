@@ -17,6 +17,12 @@
       "description": "Plan and track development work as a docs/TASKS.md index plus per-task files connected by a dependency graph",
       "source": "./plugins/tasks",
       "category": "productivity"
+    },
+    {
+      "name": "ship",
+      "description": "Finish a coding task and ship it: quality gates, code review, docs, mark task done, then open a PR or merge back linearly",
+      "source": "./plugins/ship",
+      "category": "productivity"
     }
   ]
 }
