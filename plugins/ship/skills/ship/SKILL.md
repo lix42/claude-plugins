@@ -8,7 +8,7 @@ description: >-
   CLAUDE.md, marks the task done in docs/TASKS.md, then either opens a GitHub PR
   and drives it to green, or (when there's no remote) rebases and merges back to
   the main branch with linear history.
-allowed-tools: Read, Write, Edit, Bash, Glob, Grep, Task
+allowed-tools: Read, Write, Edit, Bash, Glob, Grep, Task, Skill
 ---
 
 # Ship
