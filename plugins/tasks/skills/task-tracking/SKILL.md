@@ -85,12 +85,19 @@ a design.
 This operation is a **conversation, not a one-shot generation.** A plan the user
 didn't help shape is a plan they won't trust. Work through it:
 
-1. **Understand the input.** Read what the user gave you. If they pointed at
-   existing code or docs, read those too.
+1. **Understand the input.** Read what the user gave you. The input may be inline
+   requirement text, **a path to a plan/design doc**, or both — and a path may be
+   wrapped in prose (`read docs/plan.md`, `read docs/plan.md and make tasks`).
+   Pull out any path-like token; if it resolves to an existing file, read that
+   file as the primary plan and treat the rest as extra guidance. If they pointed
+   at existing code or other docs, read those too.
 2. **Interview.** Ask about anything genuinely unclear or unstated: scope and
    non-goals, target platform/tech stack, hard constraints, must-haves vs.
    nice-to-haves, and how "done" is judged. Ask only what you can't reasonably
-   infer — don't interrogate. Prefer a few sharp questions over a long form.
+   infer — don't interrogate. Prefer a few sharp questions over a long form. When
+   the user handed you a worked-out plan doc, interview *lighter*: the plan is
+   input to the conversation, not a license to skip it — reflect the design back
+   concisely, ask only about real gaps, and still get approval before writing.
 3. **Discuss the design.** Propose a high-level design and talk it through. Push
    back if something seems off; surface trade-offs. Converge with the user.
 4. **Propose the task split.** Present the final concise design, then a list of
@@ -112,6 +119,10 @@ didn't help shape is a plan they won't trust. Work through it:
    `progress.md` with its header plus one stub `##` section per task — each with
    `Status: not started` and a one-line goal — so every task has a section ready
    to fill in.
+   - If the user supplied a plan/design doc, **distill** a concise summary into
+     TASKS.md's Design section and link back to the source doc — don't move,
+     overwrite, or copy it wholesale. Keep TASKS.md self-contained while
+     preserving the original research where the user put it.
 7. **Confirm** what you created (counts, paths) and suggest running the "what's
    next" query to see the starting set.
 

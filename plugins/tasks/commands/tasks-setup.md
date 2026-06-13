@@ -2,7 +2,7 @@
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 description: Plan a project or feature into a docs/TASKS.md + per-task files with a dependency graph
 user-invocable: true
-args: requirement - (optional) the requirement to plan; may include a high-level design. If omitted, ask.
+args: requirement - (optional) what to plan. May be inline requirement text, a path to a plan/design doc (e.g. `docs/plan.md`), or both. If omitted, ask.
 ---
 
 # /tasks-setup — Plan a project into tasks
@@ -15,8 +15,12 @@ any files:
 - `${CLAUDE_PLUGIN_ROOT}/skills/task-tracking/references/task-file-format.md`
 - `${CLAUDE_PLUGIN_ROOT}/skills/task-tracking/references/progress-md-format.md`
 
-The user's requirement is in `$ARGUMENTS` (it may or may not include a design).
-If it's empty, ask the user to describe what they want to build.
+The user's requirement is in `$ARGUMENTS`. It may be inline text, a **path to a
+plan/design doc**, or both — and the path may be wrapped in prose like
+`read docs/plan.md` or `read docs/plan.md and make tasks`. In every case, pull out
+any path-like token; if it resolves to an existing file, read that file as the
+primary plan input and treat the rest of the argument as extra guidance. If
+`$ARGUMENTS` is empty, ask the user to describe what they want to build.
 
 Remember the operation is a conversation: understand the input, interview on what
 is unclear, discuss and converge on a concise high-level design, propose the task
