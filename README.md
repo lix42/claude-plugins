@@ -183,5 +183,13 @@ whatever tools the session has:
 7. **No remote** — if there's no GitHub remote, rebases onto `main` and
    fast-forward merges to keep history linear (safe for parallel worktrees).
 
+On its first run in a repo, `ship` detects the stable facts it depends on — GitHub
+remote, default branch, quality-gate commands, task-list presence, and which
+review/docs/task/commit skills are installed — and caches them in
+`.claude/ship.local.json` so it doesn't re-probe the environment every time. Run
+`/ship-config` to re-check and update that cache (it reports what changed) after
+you add a remote, change the project's scripts, or install/remove a relevant
+plugin.
+
 The `ship` skill also triggers when you say things like "ship it" or "ready to
 open a PR."

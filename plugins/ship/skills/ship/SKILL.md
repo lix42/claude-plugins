@@ -33,32 +33,43 @@ when present. They appear in your available-skills list; treat a name as
 ## Assess first
 
 Before touching anything, get your bearings (don't narrate every command — just
-gather what you need):
+gather what you need).
+
+**Load the cached config.** The stable facts this workflow depends on — GitHub
+remote, default branch, quality-gate commands, task-list presence, and which
+specialized skills are available — are cached so they don't have to be re-detected
+every run. The cache lives at `.claude/ship.local.json`; its location, schema, and
+detection procedure are in `${CLAUDE_PLUGIN_ROOT}/skills/ship/config.md`.
+
+- **If `.claude/ship.local.json` exists** (and its `version` is recognized), read
+  it and use those values for the steps below — don't re-detect them. Trust it; the
+  user refreshes it with `/ship-config` when the environment changes.
+- **If it's missing** (first run here), run the detection procedure in `config.md`,
+  write the file, and tell the user once: *"Detected ship config and saved it to
+  `.claude/ship.local.json` — run `/ship-config` to re-check it if your setup
+  changes."* Then continue.
+
+**Then read the live, per-run state** (never cached — it changes every invocation):
 
 - **What changed:** `git status`, and the diff vs. the base branch.
-- **Branch state:** current branch; the repo's default branch
-  (`gh repo view --json defaultBranchRef -q .defaultBranchRef.name`, or
-  `git remote show origin`); whether you're a worktree.
-- **Remote:** is there a GitHub remote? (`git remote -v`, `gh repo view`). This
-  decides Step 5/6 (PR) vs. Step 7 (local merge).
-- **Project commands:** read `package.json` scripts, a `Makefile`, and the
-  Commands section of `CLAUDE.md` to learn how this project type-checks/tests/builds.
-- **Task context:** does `docs/TASKS.md` exist, and which task did this session
-  work on?
+- **Current branch** and whether you're in a worktree.
+- **Task context:** if the cached `tasks.tasksFile` is set, which task did this
+  session work on?
 
-Give the user a one-line plan, then execute the steps in order.
+Give the user a one-line plan, then execute the steps in order. If a cached value
+turns out to be wrong mid-run (e.g. a recorded quality-gate command no longer
+exists), don't silently route around it — fix it for this run and tell the user to
+`/ship-config` to refresh the cache.
 
 ## Step 1 — Quality gates
 
-Run the project's checks and get them green. Discover what exists rather than
-assuming — common shapes: `package.json` scripts named `typecheck`/`type-check`/
-`tsc`, `test`/`test:run`, `build`, `lint`; `Makefile` targets; or commands
-documented in `CLAUDE.md`.
+Run the project's checks and get them green. Use the commands cached under
+`qualityGates` in the config (a `null` gate means the project has none — skip it).
 
-- Run **type-check, tests, and build** if the project has them. Prefer
-  **single-run / CI variants** over watch mode (e.g. `test:run`, not `test`). Run
-  `lint` too if present. Note that some commands subsume others (a `build` of
-  `tsc -b && vite build` already type-checks).
+- Run **type-check, tests, and build** if the project has them. The cache already
+  prefers **single-run / CI variants** over watch mode (e.g. `test:run`, not
+  `test`). Run `lint` too if present. Note that some commands subsume others (a
+  `build` of `tsc -b && vite build` already type-checks).
 - If you already ran a given check successfully against the current code in this
   session and nothing has changed since, you may skip re-running it.
 - **Fix every failure** and re-run until clean. Do not continue to Step 2 with a
@@ -69,12 +80,10 @@ documented in `CLAUDE.md`.
 
 Get the local change reviewed and act on the findings.
 
-- If **`pr-review-toolkit:review-pr`** is available, use it to review the current
-  change.
-- Else, if another review skill or subagent is available (e.g. a `/code-review`
-  skill, or a `code-reviewer` subagent via the Task tool), use that.
-- Else, **self-review**: re-read the diff critically for correctness, edge cases,
-  security, and project-convention violations.
+- If the cached **`skills.review`** names a review skill/subagent (e.g.
+  `pr-review-toolkit:review-pr`), use it to review the current change.
+- If it's `null`, **self-review**: re-read the diff critically for correctness,
+  edge cases, security, and project-convention violations.
 
 Address what the review surfaces — fix real issues, and for anything you
 consciously decline, note why. Re-run the relevant quality gate if you changed code.
@@ -83,7 +92,8 @@ consciously decline, note why. Re-run the relevant quality gate if you changed c
 
 Keep `CLAUDE.md` honest about how the project now works.
 
-- If **`claude-md-management:revise-claude-md`** is available, use it.
+- If the cached **`skills.reviseClaudeMd`** is set (e.g.
+  `claude-md-management:revise-claude-md`), use it.
 - Else, review what was learned this session — new commands, conventions,
   gotchas, structural changes — and update `CLAUDE.md` accordingly. Be judicious:
   record durable, non-obvious facts that help future work; don't bloat it with
@@ -92,23 +102,25 @@ Keep `CLAUDE.md` honest about how the project now works.
 
 ## Step 4 — Mark the task done
 
-If `docs/TASKS.md` exists and this session was working on one of its tasks, mark
-that task complete.
+If the cached `tasks.tasksFile` is set and this session was working on one of its
+tasks, mark that task complete.
 
-- If the **`tasks:tasks-done`** command/skill is available, use it (it also reports
-  what the completion unblocks).
-- Else, edit `docs/TASKS.md` directly: set the task's checkbox to `[x]`.
+- If the cached **`skills.tasksDone`** is set (e.g. `tasks:tasks-done`), use it (it
+  also reports what the completion unblocks).
+- Else, edit the task file directly: set the task's checkbox to `[x]`.
 - Identify the task from the session's work (branch name, files touched, the
   task's stated goal). If which task is ambiguous, ask rather than guessing.
-- If there's no `docs/TASKS.md`, or the work wasn't a tracked task, skip this step.
+- If `tasks.tasksFile` is `null`, or the work wasn't a tracked task, skip this step.
 
 ## Step 5 — Commit and open a PR (GitHub remote)
 
-Only when there's a GitHub remote. (No remote → Step 7.)
+Only when `environment.hasGitHubRemote` is `true`. (No remote → Step 7.)
 
-- **Branch first if needed.** If you're on the default branch, create a feature
-  branch before committing — never commit the change directly onto `main`.
-- If **`commit-commands:commit-push-pr`** is available, use it.
+- **Branch first if needed.** If you're on the cached `environment.defaultBranch`,
+  create a feature branch before committing — never commit the change directly
+  onto the default branch.
+- If the cached **`skills.commitPushPr`** is set (e.g.
+  `commit-commands:commit-push-pr`), use it.
 - Else: stage and commit with a clear message (imperative summary + why), push the
   branch with upstream tracking, then open the PR with `gh pr create` (concise
   title; body covering what changed and why, and linking the task if there is one).
@@ -139,8 +151,9 @@ until checks finish — don't just fire-and-forget.
 
 ## Step 7 — No remote: rebase and merge locally
 
-When there's no GitHub remote, integrate the change into `main` yourself, keeping
-history linear (other worktrees may be building on `main` in parallel).
+When `environment.hasGitHubRemote` is `false`, integrate the change into `main`
+yourself, keeping history linear (other worktrees may be building on `main` in
+parallel).
 
 - Commit the change on the feature branch (branch first if you're somehow on
   `main`).
