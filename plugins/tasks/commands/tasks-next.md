@@ -17,3 +17,6 @@ unblock the most downstream work and sit on the critical path) and which tasks c
 run in parallel. If nothing is executable, explain what's blocking the most
 valuable tasks. If there's no `docs/TASKS.md`, say so and offer to run
 `/tasks-setup`.
+
+When the user picks one of these to start, read its `docs/progress.md` section and
+those of its dependencies first, so prior decisions and gotchas carry forward.

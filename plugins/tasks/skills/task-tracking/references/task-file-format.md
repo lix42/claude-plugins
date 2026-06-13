@@ -48,6 +48,10 @@ Write "None — ..." with a short reason when there are no dependencies.>
 - The **Dependencies** section mirrors `TASKS.md`'s canonical dependency list.
   Links are relative within `tasks/` (e.g. `[Diff computation](diff-computation.md)`).
   If they ever disagree, `TASKS.md` wins — fix the mismatch.
+- This file is the task's **spec** (what to build and how it's meant to work), not
+  its execution log. The running account of how the work actually went — decisions,
+  what worked, what didn't — goes in `docs/progress.md` (see
+  `progress-md-format.md`), one section per task. Keep this file about intent.
 - Optionally record completion inline when a task is marked done, e.g. a short
   `**Done:** <date / PR / note>` line under the title, so the file reflects state
   too. The checkbox in `TASKS.md` remains the authoritative status.

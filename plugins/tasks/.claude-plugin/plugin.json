@@ -1,5 +1,5 @@
 {
   "name": "tasks",
   "description": "Plan and track development work as a docs/TASKS.md index plus per-task files, with a dependency graph that tells you which tasks are ready to work on next",
-  "version": "0.1.0"
+  "version": "0.2.0"
 }

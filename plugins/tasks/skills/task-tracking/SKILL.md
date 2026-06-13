@@ -24,6 +24,7 @@ docs/
   TASKS.md              # index: design summary + dependency graph + task list
   tasks/
     <task-name>.md      # one file per task (kebab-case name)
+  progress.md           # running execution log: how each task was carried out
   design.md             # optional: full design spec, only if it outgrows TASKS.md
 ```
 
@@ -45,9 +46,20 @@ design/approach, how to verify it, and which tasks it depends on. The per-task
 Dependencies section mirrors the canonical list in `TASKS.md` for readability —
 when they ever disagree, treat `TASKS.md` as authoritative and fix the mismatch.
 
+`progress.md` is the **execution log** — a running narrative of *how* each task was
+actually carried out: what was done, decisions made and why, what works, what
+doesn't, and notes for dependent tasks. It's one file with one `##` section per
+task (keyed by the kebab task name), which keeps it readable in one pass and
+merge-friendly when tasks run in parallel. Where `TASKS.md` holds the authoritative
+*status* and the task file holds the *spec*, `progress.md` holds the *story of the
+work*. Read it before starting a task to learn what's done, what worked, and which
+decisions were already made; update your task's section as you work. `/tasks-setup`
+seeds it.
+
 For the exact file layouts and copy-paste templates, read:
 - `references/tasks-md-format.md` — TASKS.md structure (design, deps, task list)
 - `references/task-file-format.md` — per-task file structure
+- `references/progress-md-format.md` — progress.md structure (the execution log)
 
 Read these before creating or editing files so the output stays consistent.
 
@@ -95,8 +107,11 @@ didn't help shape is a plan they won't trust. Work through it:
 5. **Get explicit approval.** Iterate until the user signs off. Do not write
    files before approval.
 6. **Create the files.** Following the templates, write `docs/TASKS.md` (design +
-   dependency graph + list) and one `docs/tasks/<name>.md` per task. All tasks
-   start `[ ]`.
+   dependency graph + list), one `docs/tasks/<name>.md` per task, and
+   `docs/progress.md` (the execution log). All tasks start `[ ]`. Seed
+   `progress.md` with its header plus one stub `##` section per task — each with
+   `Status: not started` and a one-line goal — so every task has a section ready
+   to fill in.
 7. **Confirm** what you created (counts, paths) and suggest running the "what's
    next" query to see the starting set.
 
@@ -124,6 +139,10 @@ parallelize", "show me the plan status".
 Before reporting, sanity-check the graph (see "Validate the graph"). If you find
 a cycle or a dangling dependency, surface it — it usually means the next-task
 answer can't be trusted until it's fixed.
+
+When the user actually picks a task to start, read its `progress.md` section and
+those of its dependencies first — they carry decisions and gotchas from the work
+that came before.
 
 ### 3. Update the tasks
 
@@ -153,7 +172,10 @@ Trigger: "I finished X", "X is done", "mark Y complete", "done with the parser".
 1. Identify the task (fuzzy-match the name; confirm if ambiguous).
 2. Set its checkbox to `[x]` in `TASKS.md`. If a task is being started rather
    than finished, use `[~]` instead.
-3. Optionally note completion in the task file (e.g., a short "Done:" line).
+3. **Close out the task's `progress.md` section:** set its `Status` to `done` (or
+   `in progress` if you're starting it) and add a final dated entry capturing how
+   it ended up — the approach that landed, what's verified working, and any note a
+   dependent task needs. This is the record the next task will read.
 4. **Then run the "what's next" query** and report any tasks the completion just
    unblocked. Finishing work is exactly when the user wants to know what opened
    up — closing this loop is the most useful thing you can do here.

@@ -12,6 +12,11 @@ filled example.
 <One sentence on what this file is. If a fuller design doc exists, link it:
 "See [design.md](design.md) for full context.">
 
+> **Progress log:** [progress.md](progress.md) records *how* each task is carried
+> out — what was done, decisions made, what works, what doesn't. **Read it before
+> starting a task**, and keep your task's section updated as you work, so the next
+> task can build on what you learned.
+
 ## Design
 
 <A concise high-level design — enough that someone can pick up the project
@@ -89,6 +94,10 @@ covers every task regardless of phase.
   (`task-a --> task-b` means "b depends on a").
 - Keep the three sections' edges in sync. The dependency list is canonical; the
   diagram visualizes it; per-task files mirror it.
+- The **Progress log** blockquote near the top points agents at `progress.md` (the
+  execution log) and tells them to read it before starting and update it as they
+  work. `/tasks-setup` seeds `progress.md` alongside this file. See
+  `progress-md-format.md`.
 
 ## Worked example
 
@@ -96,6 +105,10 @@ covers every task regardless of phase.
 # Calc — Tasks
 
 A TUI calculator. See [design.md](design.md) if the design section grows.
+
+> **Progress log:** [progress.md](progress.md) records *how* each task is carried
+> out. Read it before starting a task, and keep your task's section updated as you
+> work.
 
 ## Design
 

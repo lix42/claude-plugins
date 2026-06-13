@@ -13,6 +13,7 @@ tasks** operation. Also read the format references it points to before writing
 any files:
 - `${CLAUDE_PLUGIN_ROOT}/skills/task-tracking/references/tasks-md-format.md`
 - `${CLAUDE_PLUGIN_ROOT}/skills/task-tracking/references/task-file-format.md`
+- `${CLAUDE_PLUGIN_ROOT}/skills/task-tracking/references/progress-md-format.md`
 
 The user's requirement is in `$ARGUMENTS` (it may or may not include a design).
 If it's empty, ask the user to describe what they want to build.
@@ -20,4 +21,8 @@ If it's empty, ask the user to describe what they want to build.
 Remember the operation is a conversation: understand the input, interview on what
 is unclear, discuss and converge on a concise high-level design, propose the task
 split with a Mermaid dependency graph, and **get explicit approval before writing
-any files**. Then create `docs/TASKS.md` and `docs/tasks/*.md` and confirm.
+any files**. Then create `docs/TASKS.md`, `docs/tasks/*.md`, and `docs/progress.md`, and confirm.
+
+When writing `docs/progress.md`, seed it with the header from `progress-md-format.md`
+and one stub `##` section per task created — each with `Status: not started` and a
+one-line goal — so every task already has a section to fill in as work begins.

@@ -15,6 +15,8 @@ The finished task is in `$ARGUMENTS` (fuzzy-match it against the task list;
 confirm if ambiguous). If it's empty, ask which task is done.
 
 Set its checkbox to `[x]` in `docs/TASKS.md` (use `[~]` if it's being started
-rather than finished), then **run the what's-next query** and report any tasks the
-completion just unblocked — that's the most useful thing to surface right after
-finishing work.
+rather than finished). Then **close out the task's section in `docs/progress.md`**:
+set its `Status` to `done` and add a final dated entry on how it landed — the
+approach that worked, what's verified, and anything a dependent task should know.
+Finally, **run the what's-next query** and report any tasks the completion just
+unblocked — that's the most useful thing to surface right after finishing work.

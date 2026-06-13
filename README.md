@@ -139,6 +139,7 @@ to work on next.
 docs/
   TASKS.md           # design summary + dependency graph + task checklist
   tasks/<name>.md    # one file per task (goal, design, how to verify, deps)
+  progress.md        # running execution log: how each task was carried out
   design.md          # optional: full design spec if it outgrows TASKS.md
 ```
 
@@ -146,6 +147,12 @@ docs/
 (Mermaid diagram + a machine-readable list that's the source of truth for what's
 unblocked), and the **Tasks** checklist (`[ ]` todo · `[~]` in progress · `[x]`
 done), optionally grouped into phases.
+
+`progress.md` is the **execution log** beside the plan — one section per task
+recording *how* the work actually went: what was done, decisions made, what works
+and what doesn't, and notes for dependent tasks. `/tasks-setup` seeds it, and
+agents read it before starting a task and update their section as they work, so
+parallel work merges cleanly and each task builds on what the last one learned.
 
 #### Commands
 
