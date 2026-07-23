@@ -1,0 +1,4 @@
+interface:
+  display_name: "Task Tracking"
+  short_description: "Plan and track dependency-aware project tasks"
+  default_prompt: "Use $task-tracking to plan this work and identify the next unblocked task."

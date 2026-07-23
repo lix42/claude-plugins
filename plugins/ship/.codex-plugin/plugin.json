@@ -1,0 +1,36 @@
+{
+  "name": "ship",
+  "version": "0.3.0",
+  "description": "Verify, review, document, and publish a finished coding change without merging its pull request.",
+  "author": {
+    "name": "lix42",
+    "url": "https://github.com/lix42"
+  },
+  "homepage": "https://github.com/lix42/claude-plugins#ship",
+  "repository": "https://github.com/lix42/claude-plugins",
+  "keywords": [
+    "shipping",
+    "pull-request",
+    "quality-gates",
+    "productivity"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Ship",
+    "shortDescription": "Verify and publish finished coding changes",
+    "longDescription": "Run project quality gates, review the diff, update durable project instructions and task status, publish a pull request, and drive checks and feedback to green.",
+    "developerName": "lix42",
+    "category": "Productivity",
+    "capabilities": [
+      "Quality gates",
+      "Code review",
+      "Pull requests"
+    ],
+    "websiteURL": "https://github.com/lix42/claude-plugins#ship",
+    "defaultPrompt": [
+      "Use $ship to verify and publish my finished change.",
+      "Use $ship to drive this pull request to green.",
+      "Use $ship refresh config to re-detect this repository's workflow."
+    ]
+  }
+}

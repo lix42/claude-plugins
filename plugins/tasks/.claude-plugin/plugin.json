@@ -1,5 +1,8 @@
 {
   "name": "tasks",
   "description": "Plan and track development work as a docs/TASKS.md index plus per-task files, with a dependency graph that tells you which tasks are ready to work on next",
-  "version": "0.3.0"
+  "version": "0.4.0",
+  "author": {
+    "name": "lix42"
+  }
 }

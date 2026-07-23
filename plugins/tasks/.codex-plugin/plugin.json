@@ -1,0 +1,36 @@
+{
+  "name": "tasks",
+  "version": "0.4.0",
+  "description": "Plan and track development work with Markdown task files and an explicit dependency graph.",
+  "author": {
+    "name": "lix42",
+    "url": "https://github.com/lix42"
+  },
+  "homepage": "https://github.com/lix42/claude-plugins#tasks",
+  "repository": "https://github.com/lix42/claude-plugins",
+  "keywords": [
+    "tasks",
+    "planning",
+    "roadmap",
+    "productivity"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Tasks",
+    "shortDescription": "Plan and track dependency-aware project tasks",
+    "longDescription": "Turn a project or feature into a Markdown plan, dependency graph, per-task specifications, and progress log, then keep them synchronized as work changes.",
+    "developerName": "lix42",
+    "category": "Productivity",
+    "capabilities": [
+      "Planning",
+      "Task tracking",
+      "Dependency analysis"
+    ],
+    "websiteURL": "https://github.com/lix42/claude-plugins#tasks",
+    "defaultPrompt": [
+      "Use $task-tracking to break this project into dependency-aware tasks.",
+      "Use $task-tracking to show me what work is unblocked next.",
+      "Use $task-tracking to mark my current task complete."
+    ]
+  }
+}

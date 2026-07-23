@@ -7,10 +7,11 @@ args: none
 
 # /ship-config — Re-check and update the ship config
 
-The ship workflow caches the stable facts it depends on in
-`.claude/ship.local.json` so it doesn't re-detect them every run. Run this command
-to refresh that cache after your environment changes — a remote was added, the
-project's scripts changed, or you installed/removed a review/commit/task plugin.
+The ship workflow caches its Claude Code environment as schema version 2 in
+`.claude/ship.local.json` so it doesn't re-detect stable facts every run. Run this
+command to refresh that cache after your environment changes — a remote was
+added, the project's scripts changed, or you installed/removed a helper plugin.
+Never read or modify the Codex cache at `.codex/ship.local.json`.
 
 The cache location, schema, and detection procedure are defined in
 `${CLAUDE_PLUGIN_ROOT}/skills/ship/config.md` — read it and follow it.
@@ -18,8 +19,9 @@ The cache location, schema, and detection procedure are defined in
 Do this:
 
 1. **Read the existing config** at `.claude/ship.local.json`, if present. Keep its
-   values in hand for comparison. (If it's missing, this is a first-time setup —
-   there's nothing to diff against.)
+   values in hand for comparison only when it is valid schema version 2 for the
+   `claude` host. Missing, invalid, version-1, and unknown-version caches require
+   full re-detection rather than migration or a field-by-field diff.
 
 2. **Re-detect every field** using the detection procedure in `config.md`. Detect
    fresh; don't trust the old values.
