@@ -96,7 +96,7 @@ covers every task regardless of phase.
   diagram visualizes it; per-task files mirror it.
 - The **Progress log** blockquote near the top points agents at `progress.md` (the
   execution log) and tells them to read it before starting and update it as they
-  work. `/tasks-setup` seeds `progress.md` alongside this file. See
+  work. The setup operation seeds `progress.md` alongside this file. See
   `progress-md-format.md`.
 
 ## Worked example

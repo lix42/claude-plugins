@@ -1,30 +1,36 @@
 # Ship config
 
-The ship workflow depends on facts about the project and the session that are
-stable across runs: whether there's a GitHub remote, the default branch, the
-project's quality-gate commands, whether there's a task list, and which
-specialized skills are installed. Detecting these on every `/ship` is wasted
-work, so they're detected once and cached.
+The ship workflow caches project facts that are stable across runs: host,
+applicable project instructions, GitHub remote and default branch, quality-gate
+commands, task-list presence, and the exact names of installed helper skills.
+Both first-run detection and an explicit config refresh follow this file.
 
-This file is the single source of truth for **where** that cache lives, **what**
-it holds, and **how** to (re)detect it. Both the ship skill (first-run detection)
-and the `/ship-config` command (explicit re-check) follow the procedure here.
+## Host and location
 
-## Location
+Identify the host from the current runtime, not from files on disk or installed
+skills:
 
-`.claude/ship.local.json`, relative to the repository root.
+- Claude Code: `.claude/ship.local.json`
+- Codex: `.codex/ship.local.json`
 
-The `.local` suffix marks it as environment-specific (remote presence, installed
-skills, machine setup) and not meant to be committed. If the project has a
-`.claude/` directory convention already, this sits alongside it; create `.claude/`
-if it doesn't exist.
+Read and write only the current host's cache. Never consult, copy, migrate, or
+delete the other host's cache. Create the selected parent directory when needed.
+
+Schema version 2 is the only recognized version. If the selected cache is absent,
+invalid JSON, or has any other `version` (including version 1), ignore all cached
+values and run the complete detection procedure. This is the version-1 migration:
+fresh detection followed by a version-2 write, not field-by-field conversion.
 
 ## Schema
 
 ```json
 {
-  "version": 1,
-  "detectedAt": "2026-06-13T10:30:00Z",
+  "version": 2,
+  "detectedAt": "2026-07-22T10:30:00Z",
+  "host": "codex",
+  "instructions": {
+    "file": "AGENTS.md"
+  },
   "environment": {
     "hasGitHubRemote": true,
     "defaultBranch": "main"
@@ -39,64 +45,98 @@ if it doesn't exist.
     "tasksFile": "docs/TASKS.md"
   },
   "skills": {
-    "review": "pr-review-toolkit:review-pr",
-    "reviseClaudeMd": "claude-md-management:revise-claude-md",
-    "tasksDone": "tasks:tasks-done",
-    "commitPushPr": "commit-commands:commit-push-pr"
+    "localReview": "acme:review-current-diff",
+    "documentation": null,
+    "taskCompletion": "tasks:task-tracking",
+    "publishing": "github:yeet",
+    "ciRepair": "github:gh-fix-ci",
+    "reviewFeedback": "github:gh-address-comments"
   }
 }
 ```
 
 Field rules:
 
-- **`version`** — schema version. Currently `1`. If a loaded config has an
-  unrecognized version, ignore it and re-detect.
-- **`detectedAt`** — ISO-8601 UTC timestamp of the detection that produced this
-  file (`date -u +%Y-%m-%dT%H:%M:%SZ`).
-- **`environment.hasGitHubRemote`** — `true` if the repo has a GitHub remote.
-  This is what decides the PR path (Steps 5/6) vs. the local-merge path (Step 7).
-- **`environment.defaultBranch`** — the repo's default branch name.
-- **`qualityGates.*`** — the exact command to run for each gate, or `null` if the
-  project has no such gate. Keys: `typecheck`, `test`, `build`, `lint`.
-- **`tasks.tasksFile`** — path to the task list (`docs/TASKS.md`) if it exists,
-  else `null`.
-- **`skills.*`** — the exact skill/command name to invoke for each role, or `null`
-  if none is available (the skill then falls back to doing it by hand). Keys:
-  `review`, `reviseClaudeMd`, `tasksDone`, `commitPushPr`.
+- `version`: always `2`.
+- `detectedAt`: ISO-8601 UTC timestamp for the completed detection.
+- `host`: exactly `claude` or `codex`; it must match the selected cache path.
+- `instructions.file`: repository-relative path to the applicable existing
+  instruction file, or `null`. Never create an instruction file during detection.
+- `environment.hasGitHubRemote`: true only when a configured remote points to
+  GitHub.
+- `environment.defaultBranch`: detected default branch name.
+- `qualityGates`: exact commands for `typecheck`, `test`, `build`, and `lint`, or
+  `null` when the project has no corresponding gate.
+- `tasks.tasksFile`: `docs/TASKS.md` when it exists, otherwise `null`.
+- `skills`: exact installed skill names selected for each role, otherwise `null`.
+  Skill dependencies are optional; a null value always has a built-in fallback.
 
 ## Detection procedure
 
-Gather each field fresh, then write the file. Don't narrate every command.
+Gather every field fresh and write the selected host cache only after detection
+finishes. Do not narrate every probe.
 
-1. **GitHub remote + default branch.** Check `git remote -v` and `gh repo view`.
-   `hasGitHubRemote` is `true` when a GitHub remote exists. For `defaultBranch`,
-   prefer `gh repo view --json defaultBranchRef -q .defaultBranchRef.name`; fall
-   back to `git remote show origin` (the "HEAD branch" line) or, with no remote,
-   the current local default (`git symbolic-ref --short HEAD` only as a last
-   resort).
+1. **Host and project instructions.** Record the current runtime host. For Claude
+   Code, select the applicable existing `CLAUDE.md`. For Codex, select the nearest
+   applicable existing `AGENTS.md` on the path from repository root to the current
+   working directory. Record its repository-relative path, or `null`. Do not use
+   `CLAUDE.md` as Codex instructions, do not use `AGENTS.md` as Claude Code
+   instructions, and do not create either file.
 
-2. **Quality gates.** Read `package.json` scripts, a `Makefile`, and the Commands
-   section of `CLAUDE.md`. Map each gate to the command that runs it, **preferring
-   single-run / CI variants** (`test:run` over a watch `test`). Account for
-   commands that subsume others (a `build` of `tsc -b && vite build` already
-   type-checks — still record each gate's own command if it exists separately).
-   Set a gate to `null` when the project genuinely has none.
+2. **GitHub remote and default branch.** Check `git remote -v` and `gh repo view`.
+   Set `hasGitHubRemote` when a remote URL points to GitHub. For `defaultBranch`,
+   prefer `gh repo view --json defaultBranchRef -q .defaultBranchRef.name`, then
+   the remote HEAD branch, then the repository's evident local default branch.
+   Use the current branch only as a last resort.
 
-3. **Task list.** Set `tasks.tasksFile` to `docs/TASKS.md` if that file exists,
-   else `null`.
+3. **Quality gates.** Read project configuration such as `package.json`, a
+   `Makefile`, and the selected host instruction file. Record exact runnable
+   commands, preferring single-run or CI variants (`test:run` over a watch-mode
+   `test`). Account for commands that subsume other gates, but record a gate's own
+   command when one exists. Use `null` when no gate exists.
 
-4. **Skills.** Read the session's available-skills list (the names that appear in
-   context — treat a name as available only if it's actually listed). Record the
-   exact name to invoke for each role, or `null`:
-   - `review` — prefer `pr-review-toolkit:review-pr`; else another available review
-     skill (e.g. a `code-review` skill) or `code-reviewer` subagent name; else
-     `null` (self-review).
-   - `reviseClaudeMd` — `claude-md-management:revise-claude-md` or `null`.
-   - `tasksDone` — `tasks:tasks-done` or `null`.
-   - `commitPushPr` — `commit-commands:commit-push-pr` or `null`.
+4. **Task list.** Record `docs/TASKS.md` if it exists, otherwise `null`.
 
-Write the result to `.claude/ship.local.json` with the Write tool.
+5. **Optional helper skills.** Inspect the live available-skills list supplied to
+   this session. A helper is installed only when its exact skill name appears in
+   that list; do not infer availability from plugin files, commands, caches, or
+   documentation. Select each role independently:
 
-> Note: skill availability is also visible in the session's available-skills list
-> on every run, so it's effectively free to read live. It's cached here anyway so
-> the workflow has one source of truth; `/ship-config` keeps it current.
+   | Role | Claude Code preference | Codex preference |
+   |---|---|---|
+   | `localReview` | `pr-review-toolkit:review-pr`, then any installed skill whose description reviews the current/local diff or PR | Any installed skill whose description reviews the current/local diff or PR |
+   | `documentation` | `claude-md-management:revise-claude-md` | `null` (use the built-in `AGENTS.md` review) |
+   | `taskCompletion` | `tasks:tasks-done` | `tasks:task-tracking` |
+   | `publishing` | `commit-commands:commit-push-pr` | `github:yeet` |
+   | `ciRepair` | `null` | `github:gh-fix-ci` |
+   | `reviewFeedback` | `null` | `github:gh-address-comments` |
+
+   For `localReview`, accept a third-party skill only when its description
+   clearly matches local code/diff review. Do not select a skill merely because
+   “review” appears in its publisher or name, and do not repurpose CI-repair or
+   review-comment skills as local review. If multiple role-matching review skills
+   remain, prefer the one explicitly scoped to the current diff, then a local PR,
+   and otherwise the first listed exact name. Use `null` when no match exists.
+
+6. **Write once.** Write valid, formatted JSON to the selected cache with version
+   2 and a fresh timestamp. On an explicit refresh, compare all fields except
+   `detectedAt` with the prior selected-host cache and report only changed values.
+   An old or invalid schema is reported as a full re-detection, not as a partial
+   diff.
+
+## Fallback contract
+
+Missing helpers never block shipping:
+
+- `localReview`: critically self-review the current diff for correctness, edge
+  cases, security, and project conventions.
+- `documentation`: review and surgically update the selected existing instruction
+  file only for durable, non-obvious guidance; if none exists or nothing durable
+  changed, do not write one.
+- `taskCompletion`: update `docs/TASKS.md` and the matching `docs/progress.md`
+  section directly.
+- `publishing`: use `git` and `gh` directly.
+- `ciRepair`: inspect GitHub checks and logs with `gh`, reproduce locally, fix,
+  commit, and push.
+- `reviewFeedback`: inspect review threads with `gh`, address warranted feedback,
+  reply, and resolve threads when appropriate.

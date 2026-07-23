@@ -2,175 +2,170 @@
 name: ship
 description: >-
   Take a finished coding change from "done writing code" to "ready to merge."
-  Use this when the user runs /ship, or says they've finished a task and want to
-  ship / wrap up / open a PR / get it reviewed and merged. Runs the project's
-  quality gates (type-check, test, build), gets the change code-reviewed, updates
-  CLAUDE.md, marks the task done in docs/TASKS.md, then either opens a GitHub PR
-  and drives it to green, or (when there's no remote) rebases and merges back to
-  the main branch with linear history.
+  Use when the user invokes $ship or /ship, asks to ship or wrap up a finished
+  change, wants to open a pull request and drive it to green, or asks to refresh
+  ship configuration. Run project quality gates, review the diff, update durable
+  host-specific project instructions and tracked-task state, then publish and
+  stabilize a GitHub PR or integrate linearly when no GitHub remote exists.
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, Task, Skill
 ---
 
 # Ship
 
-Carry a finished change through the last mile: verify it, review it, document it,
-and get it into review/merge. The user ran `/ship` (or asked to ship), so the
-outward actions here — pushing, opening a PR — are authorized; you don't need to
-ask permission for each one. Two hard rules:
+Carry a finished change through verification, review, documentation, task
+completion, and publication. Invoking this workflow authorizes its normal outward
+actions, including pushing a branch and opening or updating a pull request.
 
-- **Never proceed past a failing quality gate.** A red type-check/test/build is a
-  stop sign — fix it, don't ship around it.
-- **Don't merge a GitHub PR.** Get it green and address feedback, then hand back
-  so the user does the final merge (respects branch protection / required review).
-  (The no-remote local-merge path in Step 7 is the one exception, and it's the
-  whole point of that path.)
+Obey two hard rules:
 
-Throughout, **prefer an available specialized skill/subagent over doing it by
-hand** — check the session's available skills and commands and use the named ones
-when present. They appear in your available-skills list; treat a name as
-"available" only if it's actually there.
+- Never continue past a failing quality gate. Fix it and rerun the gate; if an
+  unrelated pre-existing failure cannot safely be fixed, stop for the user.
+- Never merge a GitHub pull request. Make it green, address feedback, and leave
+  the final merge to the user. The no-remote local integration path is the only
+  exception because it creates no pull request.
 
-## Assess first
+Optional helper skills are soft dependencies. Use the exact detected helper when
+available and its role matches; otherwise use the built-in fallback. Never assume
+a helper exists because its plugin is mentioned in documentation.
 
-Before touching anything, get your bearings (don't narrate every command — just
-gather what you need).
+## Refresh configuration
 
-**Load the cached config.** The stable facts this workflow depends on — GitHub
-remote, default branch, quality-gate commands, task-list presence, and which
-specialized skills are available — are cached so they don't have to be re-detected
-every run. The cache lives at `.claude/ship.local.json`; its location, schema, and
-detection procedure are in `${CLAUDE_PLUGIN_ROOT}/skills/ship/config.md`.
+If the request is `/ship-config`, `$ship refresh config`, or otherwise asks only
+to refresh configuration, do not ship anything:
 
-- **If `.claude/ship.local.json` exists** (and its `version` is recognized), read
-  it and use those values for the steps below — don't re-detect them. Trust it; the
-  user refreshes it with `/ship-config` when the environment changes.
-- **If it's missing** (first run here), run the detection procedure in `config.md`,
-  write the file, and tell the user once: *"Detected ship config and saved it to
-  `.claude/ship.local.json` — run `/ship-config` to re-check it if your setup
-  changes."* Then continue.
+1. Read `config.md` bundled beside this file.
+2. Identify the current host and read only that host's cache.
+3. Re-detect every field using the documented procedure.
+4. Compare fields other than `detectedAt` and report `old → new` values. Treat
+   schema version 1, unknown versions, and invalid JSON as a full re-detection.
+5. Write the version-2 result to the current host cache and stop.
 
-**Then read the live, per-run state** (never cached — it changes every invocation):
+## Assess the change
 
-- **What changed:** `git status`, and the diff vs. the base branch.
-- **Current branch** and whether you're in a worktree.
-- **Task context:** if the cached `tasks.tasksFile` is set, which task did this
-  session work on?
+Read `config.md` before using cached values.
 
-Give the user a one-line plan, then execute the steps in order. If a cached value
-turns out to be wrong mid-run (e.g. a recorded quality-gate command no longer
-exists), don't silently route around it — fix it for this run and tell the user to
-`/ship-config` to refresh the cache.
+1. Identify the runtime as Claude Code or Codex and select only its cache:
+   `.claude/ship.local.json` or `.codex/ship.local.json` respectively.
+2. If that cache contains valid schema version 2 for the current host, use it.
+   If it is missing, invalid, version 1, another version, or records another host,
+   run complete detection and overwrite only the selected cache. Never read the
+   other host's cache.
+3. On first detection, tell the user which cache was written and how to refresh
+   it: `/ship-config` in Claude Code or `$ship refresh config` in Codex.
+4. Read live state that must never be cached: `git status`, the diff against the
+   base branch, the current branch, worktree state, and which tracked task this
+   session's change implements.
 
-## Step 1 — Quality gates
+Give the user a one-line execution summary, then run the steps in order. If a
+cached command or helper is no longer valid, fix the route for this run and tell
+the user to refresh the config afterward.
 
-Run the project's checks and get them green. Use the commands cached under
-`qualityGates` in the config (a `null` gate means the project has none — skip it).
+## 1. Pass quality gates
 
-- Run **type-check, tests, and build** if the project has them. The cache already
-  prefers **single-run / CI variants** over watch mode (e.g. `test:run`, not
-  `test`). Run `lint` too if present. Note that some commands subsume others (a
-  `build` of `tsc -b && vite build` already type-checks).
-- If you already ran a given check successfully against the current code in this
-  session and nothing has changed since, you may skip re-running it.
-- **Fix every failure** and re-run until clean. Do not continue to Step 2 with a
-  red gate. If a failure is genuinely pre-existing and unrelated to this change,
-  say so explicitly and let the user decide rather than silently ignoring it.
+Run every non-null command under `qualityGates`, using the cached exact command.
+Run type-check, tests, build, and lint when present. A successful gate already run
+against identical code in this session need not be repeated.
 
-## Step 2 — Code review
+Fix failures and rerun affected gates until green. If code changes later in the
+workflow, rerun every gate that could be affected.
 
-Get the local change reviewed and act on the findings.
+## 2. Review the local diff
 
-- If the cached **`skills.review`** names a review skill/subagent (e.g.
-  `pr-review-toolkit:review-pr`), use it to review the current change.
-- If it's `null`, **self-review**: re-read the diff critically for correctness,
-  edge cases, security, and project-convention violations.
+If `skills.localReview` contains an exact installed skill name, invoke it to
+review the current local change. Otherwise critically self-review the whole diff
+for correctness, edge cases, security, error handling, and project conventions.
 
-Address what the review surfaces — fix real issues, and for anything you
-consciously decline, note why. Re-run the relevant quality gate if you changed code.
+Investigate every finding. Fix warranted issues and state why any finding is
+declined. Rerun affected quality gates after changes.
 
-## Step 3 — Update documentation
+## 3. Update durable project instructions
 
-Keep `CLAUDE.md` honest about how the project now works.
+Use `instructions.file` as the only candidate:
 
-- If the cached **`skills.reviseClaudeMd`** is set (e.g.
-  `claude-md-management:revise-claude-md`), use it.
-- Else, review what was learned this session — new commands, conventions,
-  gotchas, structural changes — and update `CLAUDE.md` accordingly. Be judicious:
-  record durable, non-obvious facts that help future work; don't bloat it with
-  one-off detail or things the code already makes clear. If nothing meaningful
-  changed, it's fine to update nothing — say so.
+- In Claude Code, if `skills.documentation` is set, invoke that exact helper for
+  the existing applicable `CLAUDE.md`; otherwise review it directly.
+- In Codex, review the existing applicable `AGENTS.md` directly. There is no
+  required documentation helper.
 
-## Step 4 — Mark the task done
+Add only durable, non-obvious commands, conventions, gotchas, or structural facts
+learned from the change. Do not create an instruction file, expand one with
+one-off implementation details, or update the other host's instruction format.
+It is correct to make no documentation edit.
 
-If the cached `tasks.tasksFile` is set and this session was working on one of its
-tasks, mark that task complete.
+## 4. Complete a tracked task
 
-- If the cached **`skills.tasksDone`** is set (e.g. `tasks:tasks-done`), use it (it
-  also reports what the completion unblocks).
-- Else, edit the task file directly: set the task's checkbox to `[x]`.
-- Identify the task from the session's work (branch name, files touched, the
-  task's stated goal). If which task is ambiguous, ask rather than guessing.
-- If `tasks.tasksFile` is `null`, or the work wasn't a tracked task, skip this step.
+When `tasks.tasksFile` is set and the current change clearly implements one task:
 
-## Step 5 — Commit and open a PR (GitHub remote)
+- Invoke the exact `skills.taskCompletion` helper when set. For
+  `tasks:task-tracking`, request its **Mark a task done** operation.
+- Otherwise update the task checkbox in `docs/TASKS.md` and close out the matching
+  section in `docs/progress.md` directly, including the landed approach,
+  verification, and notes for dependent tasks.
 
-Only when `environment.hasGitHubRemote` is `true`. (No remote → Step 7.)
+Identify the task from the task goal, branch, diff, and session context. Ask the
+user if multiple tasks remain plausible. Skip when there is no task file or the
+change is not tracked.
 
-- **Branch first if needed.** If you're on the cached `environment.defaultBranch`,
-  create a feature branch before committing — never commit the change directly
-  onto the default branch.
-- If the cached **`skills.commitPushPr`** is set (e.g.
-  `commit-commands:commit-push-pr`), use it.
-- Else: stage and commit with a clear message (imperative summary + why), push the
-  branch with upstream tracking, then open the PR with `gh pr create` (concise
-  title; body covering what changed and why, and linking the task if there is one).
-- Follow any commit-message / co-author conventions the user's global or project
-  config defines.
+## 5. Publish when a GitHub remote exists
 
-## Step 6 — Drive the PR to green
+Follow this path only when `environment.hasGitHubRemote` is true.
 
-Monitor the PR and keep working it until checks pass and feedback is handled. Poll
-until checks finish — don't just fire-and-forget.
+1. If currently on `environment.defaultBranch`, create a feature branch before
+   committing. Never commit the change directly on the default branch.
+2. If `skills.publishing` is set, invoke that exact helper. Otherwise stage the
+   intended files, commit with a clear imperative summary and rationale, push
+   with upstream tracking, and create a concise PR with `gh pr create`.
+3. Honor repository and user commit conventions. Do not stage unrelated changes.
+4. Record whether the resulting pull request is a draft. In particular,
+   `github:yeet` normally creates a draft; that is an intermediate state, not the
+   end of this workflow.
 
-- **Watch checks:** `gh pr checks --watch` (or poll `gh pr checks` / `gh pr view
-  --json statusCheckRollup`). This can take several minutes; wait it out.
-- **On a failing check:** open the failing job's logs (`gh run view --log-failed`),
-  reproduce and fix locally, commit, push, then re-watch. Loop until green or
-  genuinely stuck — if stuck, stop and explain what's blocking.
-- **If the branch is behind the base:** when the PR is out of date with the
-  default branch (`gh pr view --json mergeStateStatus` shows `BEHIND`, or checks
-  won't settle because of it), `git fetch origin` and **rebase onto the default
-  branch**, re-run quality gates (the base moved), then force-push
-  (`--force-with-lease`) and re-watch.
-- **Review comments:** read them (`gh pr view --comments`, and review threads via
-  `gh api`). Evaluate each on its merits — push back with reasoning when you
-  disagree (don't just comply). Make the changes that are warranted, push, and
-  **reply to each thread** saying what you did or why you didn't.
-- **Stop when green and comments are addressed.** Report the PR URL and status;
-  leave the final merge to the user.
+Continue immediately to stabilization. Do not stop merely because a publishing
+helper returned a pull-request URL.
 
-## Step 7 — No remote: rebase and merge locally
+## 6. Drive the pull request to green
 
-When `environment.hasGitHubRemote` is `false`, integrate the change into `main`
-yourself, keeping history linear (other worktrees may be building on `main` in
-parallel).
+Loop until checks pass, the branch is current, and actionable review feedback is
+handled:
 
-- Commit the change on the feature branch (branch first if you're somehow on
-  `main`).
-- **Rebase onto `main`** so the branch sits directly on top of the latest `main`
-  (`git fetch` if `main` tracks anything; then `git rebase main`). Resolve any
-  conflicts.
-- **Re-run the Step 1 quality gates** after the rebase — `main` may have moved
-  under you — and fix anything that broke.
-- **Fast-forward `main`** to the rebased branch (`git checkout main && git merge
-  --ff-only <branch>`), which keeps history linear. If `main` is checked out in
-  another worktree and can't be checked out here, tell the user rather than
-  forcing it.
-- Report the resulting `main` commit.
+1. **Checks.** Watch with `gh pr checks --watch` or inspect
+   `statusCheckRollup`. If checks fail and `skills.ciRepair` is set, invoke that
+   exact helper. Otherwise inspect failed logs with `gh`, reproduce locally, fix,
+   rerun local gates, commit, push, and watch again.
+2. **Behind base.** If merge state is `BEHIND`, fetch and rebase onto the remote
+   default branch, rerun all quality gates, then push with `--force-with-lease`.
+3. **Review feedback.** If `skills.reviewFeedback` is set, invoke that exact
+   helper to inspect unresolved threads and implement selected fixes. Otherwise
+   use `gh pr view --comments`, `gh api`, or GraphQL as needed to inspect threads.
+   Evaluate comments rather than accepting them blindly; make warranted changes,
+   reply with what changed or why it did not, and resolve addressed threads when
+   appropriate.
+4. **Repeat.** Any pushed change restarts check and feedback inspection. Continue
+   until green or until a genuine external blocker requires the user.
 
-## Finishing up
+If the PR is a draft, mark it ready for review only after all checks pass and all
+known actionable feedback is addressed (`gh pr ready` is the direct fallback).
+Never merge it.
 
-End with a short summary: which gates ran and passed, how the review went, whether
-CLAUDE.md / the task list changed, and the outcome — PR URL + check status (Step
-6) or the new `main` commit (Step 7). Call out anything you skipped and why, and
-anything left for the user (e.g. the final PR merge).
+## 7. Integrate linearly when no GitHub remote exists
+
+Follow this path only when `environment.hasGitHubRemote` is false:
+
+1. Create a feature branch if currently on the default branch, then commit the
+   intended change.
+2. Rebase the feature branch onto the latest local default branch. If that branch
+   tracks a remote, fetch first. Resolve conflicts without discarding user work.
+3. Rerun all quality gates after the rebase and fix any failures.
+4. Fast-forward the default branch to the rebased feature branch with
+   `git merge --ff-only`. If the default branch is checked out in another
+   worktree, stop and explain instead of forcing the operation.
+
+Report the resulting default-branch commit.
+
+## Finish
+
+Summarize the gates that passed, review outcome, project-instruction and task
+updates, and publication result. For GitHub, include the PR URL, green status,
+and whether it was marked ready for review; remind the user that the final merge
+remains theirs. For no-remote integration, include the resulting commit. Call out
+anything skipped and why.

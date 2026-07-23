@@ -1,0 +1,4 @@
+interface:
+  display_name: "Ship"
+  short_description: "Verify, review, and publish finished changes"
+  default_prompt: "Use $ship to verify, review, and publish my finished coding change."

@@ -1,8 +1,10 @@
 # claude-plugins
 
-Custom Claude Code plugins by [lix42](https://github.com/lix42).
+Custom Claude Code and Codex plugins by [lix42](https://github.com/lix42).
 
 ## Installation
+
+### Claude Code
 
 Add this marketplace to your Claude Code settings (`~/.claude/settings.json`):
 
@@ -30,6 +32,19 @@ Then enable individual plugins under `enabledPlugins`:
   }
 }
 ```
+
+### Codex
+
+Add this repository as the `lix42` marketplace, then install either or both
+Codex-compatible plugins:
+
+```sh
+codex plugin marketplace add lix42/claude-plugins
+codex plugin add tasks@lix42
+codex plugin add ship@lix42
+```
+
+`eng-records` remains Claude Code-only.
 
 ## Plugins
 
@@ -150,7 +165,7 @@ done), optionally grouped into phases.
 
 `progress.md` is the **execution log** beside the plan — one section per task
 recording *how* the work actually went: what was done, decisions made, what works
-and what doesn't, and notes for dependent tasks. `/tasks-setup` seeds it, and
+and what doesn't, and notes for dependent tasks. The setup operation seeds it, and
 agents read it before starting a task and update their section as they work, so
 parallel work merges cleanly and each task builds on what the last one learned.
 
@@ -167,36 +182,43 @@ The bundled `task-tracking` skill also triggers automatically when you ask about
 the plan, what to work on next, or say a piece of work is done — so you don't have
 to remember the commands.
 
+In Codex, invoke `$task-tracking` explicitly or ask naturally to set up a plan,
+find the next unblocked work, update the plan, or mark a task done. The Claude
+Code `/tasks-*` commands remain available and route to the same shared skill.
+
 ### ship
 
 Take a finished change from "done writing code" to "ready to merge" in one step.
 
-Run `/ship` after finishing a task. It works these steps in order, adapting to
-whatever tools the session has:
+Run `/ship` in Claude Code, invoke `$ship` in Codex, or say “ship it” after
+finishing a task. It works these steps in order, adapting to the host and the
+optional helper skills installed in the current session:
 
 1. **Quality gates** — discover and run the project's type-check / test / build /
    lint commands and fix any failures (never ships past a red gate).
-2. **Code review** — uses `pr-review-toolkit:review-pr` if available, else another
-   review skill/subagent, else a critical self-review; acts on the findings.
-3. **Docs** — updates `CLAUDE.md` via `claude-md-management:revise-claude-md` if
-   available, else from the session's lessons learned.
+2. **Code review** — uses an installed local-review skill when available, else a
+   critical self-review; acts on the findings.
+3. **Docs** — updates durable existing project instructions: `CLAUDE.md` in
+   Claude Code or the applicable `AGENTS.md` in Codex. It does not create an
+   instruction file just to record one-off details.
 4. **Task** — if `docs/TASKS.md` exists and the session worked a task, marks it
-   `[x]` (via `tasks:tasks-done` when available).
+   `[x]` using the host's task helper when available, with a direct-file fallback.
 5. **PR** — if there's a GitHub remote: branch if needed, then commit + push +
-   open a PR (via `commit-commands:commit-push-pr` if available, else `gh`).
+   open a PR using the host's publishing helper when available, else `git`/`gh`.
 6. **Drive to green** — polls PR checks, fixes failures and pushes, rebases onto
    the default branch when the PR falls behind, and reads/answers review comments.
    Stops once green — the final merge is left to you.
 7. **No remote** — if there's no GitHub remote, rebases onto `main` and
    fast-forward merges to keep history linear (safe for parallel worktrees).
 
-On its first run in a repo, `ship` detects the stable facts it depends on — GitHub
-remote, default branch, quality-gate commands, task-list presence, and which
-review/docs/task/commit skills are installed — and caches them in
-`.claude/ship.local.json` so it doesn't re-probe the environment every time. Run
-`/ship-config` to re-check and update that cache (it reports what changed) after
-you add a remote, change the project's scripts, or install/remove a relevant
-plugin.
+On its first run in a repo, `ship` detects the stable facts it depends on — host,
+project instructions, GitHub remote, default branch, quality-gate commands,
+task-list presence, and the exact optional helper-skill names installed — and
+caches them in `.claude/ship.local.json` for Claude Code or
+`.codex/ship.local.json` for Codex. The host caches are independent. Run
+`/ship-config` in Claude Code or `$ship refresh config` in Codex to re-detect and
+report changes after the project or installed plugins change.
 
 The `ship` skill also triggers when you say things like "ship it" or "ready to
-open a PR."
+open a PR." It never merges a GitHub pull request; if a publishing helper opens a
+draft PR, `ship` drives it green and then marks it ready for review.

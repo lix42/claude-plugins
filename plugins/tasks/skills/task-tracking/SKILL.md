@@ -53,8 +53,8 @@ task (keyed by the kebab task name), which keeps it readable in one pass and
 merge-friendly when tasks run in parallel. Where `TASKS.md` holds the authoritative
 *status* and the task file holds the *spec*, `progress.md` holds the *story of the
 work*. Read it before starting a task to learn what's done, what worked, and which
-decisions were already made; update your task's section as you work. `/tasks-setup`
-seeds it.
+decisions were already made; update your task's section as you work. The setup
+operation seeds it.
 
 For the exact file layouts and copy-paste templates, read:
 - `references/tasks-md-format.md` — TASKS.md structure (design, deps, task list)
@@ -72,9 +72,10 @@ than guessing. Create `docs/` and `docs/tasks/` if they don't exist yet.
 
 ## Operations
 
-This skill supports four operations. The user may invoke them explicitly via the
-plugin commands (`/tasks-setup`, `/tasks-next`, `/tasks-update`, `/tasks-done`),
-or describe them in natural language — pick the matching operation from intent.
+This skill supports four operations. In Codex, `$task-tracking` handles all four;
+choose the operation from the user's request. Claude Code also exposes the
+`/tasks-setup`, `/tasks-next`, `/tasks-update`, and `/tasks-done` wrappers, which
+route to this same workflow. Natural-language requests work on either host.
 
 ### 1. Set up the tasks (plan a project)
 
