@@ -196,11 +196,15 @@ optional helper skills installed in the current session:
 
 1. **Quality gates** — discover and run the project's type-check / test / build /
    lint commands and fix any failures (never ships past a red gate).
-2. **Code review** — uses an installed local-review skill when available, else a
-   critical self-review; acts on the findings.
+2. **Code review** — reviews the local change before anything is committed. In
+   Claude Code it prefers `pr-review-toolkit:review-pr` (which reviews the
+   working tree, no open PR required) and runs a Codex review in parallel when
+   the Codex plugin and CLI are installed; falls back to a critical self-review
+   only when neither is available. Acts on the findings either way.
 3. **Docs** — updates durable existing project instructions: `CLAUDE.md` in
-   Claude Code or the applicable `AGENTS.md` in Codex. It does not create an
-   instruction file just to record one-off details.
+   Claude Code (via `claude-md-management:revise-claude-md` when installed) or
+   the applicable `AGENTS.md` in Codex. It does not create an instruction file
+   just to record one-off details.
 4. **Task** — if `docs/TASKS.md` exists and the session worked a task, marks it
    `[x]` using the host's task helper when available, with a direct-file fallback.
 5. **PR** — if there's a GitHub remote: branch if needed, then commit + push +
@@ -213,8 +217,8 @@ optional helper skills installed in the current session:
 
 On its first run in a repo, `ship` detects the stable facts it depends on — host,
 project instructions, GitHub remote, default branch, quality-gate commands,
-task-list presence, and the exact optional helper-skill names installed — and
-caches them in `.claude/ship.local.json` for Claude Code or
+task-list presence, the exact optional helper-skill names installed, and the
+Codex review command when available — and caches them in `.claude/ship.local.json` for Claude Code or
 `.codex/ship.local.json` for Codex. The host caches are independent. Run
 `/ship-config` in Claude Code or `$ship refresh config` in Codex to re-detect and
 report changes after the project or installed plugins change.

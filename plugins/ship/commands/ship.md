@@ -1,5 +1,5 @@
 ---
-allowed-tools: Read, Write, Edit, Bash, Glob, Grep, Task
+allowed-tools: Read, Write, Edit, Bash, Glob, Grep, Task, Skill
 description: Finish the current task and ship it — quality gates, code review, docs, mark task done, then open a PR or merge back linearly
 user-invocable: true
 args: none

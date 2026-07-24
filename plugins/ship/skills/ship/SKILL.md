@@ -37,8 +37,8 @@ to refresh configuration, do not ship anything:
 2. Identify the current host and read only that host's cache.
 3. Re-detect every field using the documented procedure.
 4. Compare fields other than `detectedAt` and report `old → new` values. Treat
-   schema version 1, unknown versions, and invalid JSON as a full re-detection.
-5. Write the version-2 result to the current host cache and stop.
+   any older or unknown schema version and invalid JSON as a full re-detection.
+5. Write the version-3 result to the current host cache and stop.
 
 ## Assess the change
 
@@ -46,10 +46,10 @@ Read `config.md` before using cached values.
 
 1. Identify the runtime as Claude Code or Codex and select only its cache:
    `.claude/ship.local.json` or `.codex/ship.local.json` respectively.
-2. If that cache contains valid schema version 2 for the current host, use it.
-   If it is missing, invalid, version 1, another version, or records another host,
-   run complete detection and overwrite only the selected cache. Never read the
-   other host's cache.
+2. If that cache contains valid schema version 3 for the current host, use it.
+   If it is missing, invalid, an older version, another version, or records
+   another host, run complete detection and overwrite only the selected cache.
+   Never read the other host's cache.
 3. On first detection, tell the user which cache was written and how to refresh
    it: `/ship-config` in Claude Code or `$ship refresh config` in Codex.
 4. Read live state that must never be cached: `git status`, the diff against the
@@ -71,12 +71,32 @@ workflow, rerun every gate that could be affected.
 
 ## 2. Review the local diff
 
-If `skills.localReview` contains an exact installed skill name, invoke it to
-review the current local change. Otherwise critically self-review the whole diff
-for correctness, edge cases, security, error handling, and project conventions.
+This step reviews the working change and runs before any commit or pull request.
+A missing pull request is never a reason to skip a configured reviewer.
 
-Investigate every finding. Fix warranted issues and state why any finding is
-declined. Rerun affected quality gates after changes.
+Run every configured reviewer, in parallel when more than one applies. Launch
+`review.codexCommand` as a background Bash job first, then invoke the local
+review skill, then collect the Codex output.
+
+- **`skills.localReview`.** Invoke that exact skill on the current local change.
+  In Claude Code this is normally `pr-review-toolkit:review-pr`, which is the
+  preferred local reviewer: it scopes itself from `git status` and `git diff` and
+  reviews uncommitted work. Its name means pre-PR review, not "requires an open
+  GitHub PR". Never downgrade it to a self-review because no pull request exists.
+- **`review.codexCommand`.** When set, run it verbatim with Bash for an
+  independent Codex review of the same local change. This is the programmatic
+  form of `/codex:review`, which is user-invocable only and therefore cannot be
+  called as a skill. Append `--base <environment.defaultBranch>` when the change
+  is already committed rather than sitting in the working tree. Treat a Codex
+  failure — missing CLI, auth error, non-zero exit — as a skipped reviewer:
+  report it and continue with the rest of the review.
+
+Critically self-review the whole diff for correctness, edge cases, security,
+error handling, and project conventions only when neither reviewer is configured.
+
+Investigate every finding from every reviewer, deduplicating overlap. Fix
+warranted issues and state why any finding is declined. Rerun affected quality
+gates after changes.
 
 ## 3. Update durable project instructions
 
@@ -84,6 +104,8 @@ Use `instructions.file` as the only candidate:
 
 - In Claude Code, if `skills.documentation` is set, invoke that exact helper for
   the existing applicable `CLAUDE.md`; otherwise review it directly.
+  `claude-md-management:revise-claude-md` is the preferred helper — when it is
+  configured, do not hand-edit `CLAUDE.md` instead of invoking it.
 - In Codex, review the existing applicable `AGENTS.md` directly. There is no
   required documentation helper.
 
