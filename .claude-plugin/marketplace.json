@@ -14,7 +14,7 @@
     },
     {
       "name": "tasks",
-      "description": "Plan and track development work as a docs/TASKS.md index plus per-task files connected by a dependency graph",
+      "description": "Plan and track development work as a docs/TASKS.md index plus per-task files connected by a dependency graph, with optional epics for large plans",
       "source": "./plugins/tasks",
       "category": "productivity"
     },

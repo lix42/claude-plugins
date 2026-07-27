@@ -1,6 +1,6 @@
 {
   "name": "ship",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Verify, review, document, and publish a finished coding change without merging its pull request.",
   "author": {
     "name": "lix42",

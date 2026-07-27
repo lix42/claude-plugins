@@ -1,12 +1,15 @@
 # TASKS.md format
 
 `docs/TASKS.md` is the index for the whole plan. It has three sections in this
-order: **Design**, **Dependencies**, **Tasks**. Below is the structure, then a
-filled example.
+order: **Design**, **Dependencies**, **Tasks**. Below is the structure for a flat
+plan, then the epic-mode variant, then a filled example of each.
 
-## Structure
+`TASKS.md` stays a **single file** in both modes. It is the control center; only
+the task files and the progress log shard by epic.
 
-```markdown
+## Structure (flat mode)
+
+````markdown
 # <Project> — Tasks
 
 <One sentence on what this file is. If a fuller design doc exists, link it:
@@ -55,53 +58,129 @@ Dependency list (a task is executable when all its deps are `[x]` done):
 - [ ] [Task B title](tasks/task-b.md)
 - [ ] [Task C title](tasks/task-c.md)
 - [ ] [Task D title](tasks/task-d.md)
+````
+
+## Structure (epic mode)
+
+Used once the plan outgrows a flat list — see `epics.md`, which is authoritative
+on the threshold and the grouping rules. Four things change:
+
+1. Task ids become **`<epic>/<task>`**, matching `tasks/<epic>/<task>.md`.
+2. The Mermaid diagram wraps each epic's nodes in a `subgraph`.
+3. A derived **epic rollup** diagram is added above the task-level one.
+4. The task list is grouped under `###` epic headings, each with a scope line and
+   a link to that epic's progress file.
+
+````markdown
+# <Project> — Tasks
+
+<One sentence on what this file is, plus a link to design.md if it exists.>
+
+> **Progress log:** one file per epic under [progress/](progress/) records *how*
+> each task is carried out. **Before starting a task, read your epic's progress
+> file in full, plus the `Epic summary` section of every epic you depend on** —
+> then keep your own task's section updated as you work.
+
+## Design
+
+<Same as flat mode. In epic mode this section carries extra weight: the
+Architecture bullets should line up with the epic list below, since epics are
+structural. If they've drifted apart, one of the two is wrong.>
+
+## Dependencies
+
+<Canonical source of truth for the dependency graph, at the **task** level. The
+"what's next" query reads the dependency list. Keep the diagram and the list in
+agreement.>
+
+Epic rollup (derived from the task graph — do not author epic-level edges here;
+regenerate this whenever the task edges change):
+
+```mermaid
+graph TD
+  core --> color
 ```
 
-## Grouping into phases (optional)
+```mermaid
+graph TD
+  subgraph core
+    core/foundation
+    core/types
+  end
+  subgraph color
+    color/working-space
+    color/p3-output
+  end
+  core/foundation --> core/types
+  core/types --> color/working-space
+  color/working-space --> color/p3-output
+```
 
-When the build has a natural order or each stage delivers something usable on its
-own, group the task list into phases/stories. Use a short goal line per phase:
+Dependency list (a task is executable when all its deps are `[x]` done):
 
-```markdown
+- `core/foundation`: (none)
+- `core/types`: `core/foundation`
+- `color/working-space`: `core/types`
+- `color/p3-output`: `color/working-space`
+
 ## Tasks
 
 **Legend:** `[ ]` not started · `[~]` in progress · `[x]` done
+**Epic status** is derived from its tasks — don't record it separately.
 
-### Phase 1: Basic viewer
-> Goal: a usable standalone viewer with the core rendering path working.
+### core — [progress](progress/core.md)
+> Project skeleton and the types every other epic depends on.
 
-- [x] [Repo detection](tasks/repo-detection.md)
-- [ ] [Diff computation](tasks/diff-computation.md)
+- [x] [Project foundation](tasks/core/foundation.md)
+- [ ] [Shared image types](tasks/core/types.md)
 
-### Phase 2: Review workflow
-> Goal: comments and persistence — the workflow works end to end.
+### color — [progress](progress/color.md)
+> Working-space definition and colour-managed output encoding.
 
-- [ ] [Comment CRUD](tasks/comment-crud.md)
-```
-
-Phases are just headings over the same checklist; the Dependencies section still
-covers every task regardless of phase.
+- [ ] [Working-space mapping](tasks/color/working-space.md)
+- [ ] [Display P3 output](tasks/color/p3-output.md)
+````
 
 ## Conventions
 
-- **Task names are kebab-case** and match the file stem: `tasks/diff-computation.md`
-  ↔ `diff-computation` in the dependency list. This is what makes the two
-  sections cross-referenceable.
-- In the dependency list, wrap task names in backticks and write `(none)` for
-  tasks with no dependencies — explicit beats blank.
+- **Flat-mode task names are kebab-case** and match the file stem:
+  `tasks/diff-computation.md` ↔ `diff-computation`.
+- **Epic-mode task ids are `<epic>/<task>`** and match the path stem:
+  `tasks/color/p3-output.md` ↔ `color/p3-output`. This is what makes the
+  dependency list, the task list, the task files, and the progress files
+  cross-referenceable.
+- Mermaid's flowchart parser accepts `/` in bare node ids, so slash ids need no
+  quoting. **Never** introduce alias ids like `color_p3_output` — a second naming
+  scheme is a second thing to keep in sync.
+- In the dependency list, wrap task ids in backticks and write `(none)` for tasks
+  with no dependencies — explicit beats blank.
 - The Mermaid `graph TD` (top-down) reads well for build order; `graph LR` is
   fine for wide, shallow graphs. Edges point **from dependency to dependent**
   (`task-a --> task-b` means "b depends on a").
-- Keep the three sections' edges in sync. The dependency list is canonical; the
-  diagram visualizes it; per-task files mirror it.
-- The **Progress log** blockquote near the top points agents at `progress.md` (the
-  execution log) and tells them to read it before starting and update it as they
-  work. The setup operation seeds `progress.md` alongside this file. See
+- **The task-level dependency list is canonical.** The task-level diagram
+  visualizes it, the epic rollup summarizes it, and per-task files mirror it.
+  When any of them disagree, the list wins.
+- **The epic rollup is derived, never authored.** An edge `core --> color` means
+  "some task in `color` depends on some task in `core`". Build it by projecting
+  every cross-epic task edge onto its epics, then dropping intra-epic edges and
+  duplicates. Don't add epic edges that no task edge backs, and don't use the
+  rollup to answer "what's next" — it is coarser than the real graph and would
+  report false blocks.
+- **A cycle in the rollup is not a defect.** An acyclic task graph can project to
+  a cyclic rollup (`core/types → ui/buttons` with `ui/theme → core/palette`). Only
+  the task graph must be acyclic; never adjust task edges to tidy the rollup.
+- **Epic status is derived too**: no tasks started → not started; all `[x]` →
+  done; otherwise in progress. Don't store it, or it will go stale.
+- **No phase/stage grouping.** Group tasks by structure (epics) only. Delivery
+  stages cut across subsystems and make incoherent groups; see `epics.md`.
+- The **Progress log** blockquote near the top tells agents which progress files
+  to read before starting and to update their own as they work. The setup
+  operation seeds the progress file(s) alongside this one. See
   `progress-md-format.md`.
 
-## Worked example
+## Worked example (flat mode)
 
-```markdown
+````markdown
 # Calc — Tasks
 
 A TUI calculator. See [design.md](design.md) if the design section grows.
@@ -158,4 +237,117 @@ Dependency list (a task is executable when all its deps are `[x]` done):
 - [ ] [Render button grid with focus](tasks/ui-buttons.md)
 - [ ] [Direct keyboard input](tasks/key-input.md)
 - [ ] [Button navigation with HJKL/arrows](tasks/button-nav.md)
+````
+
+## Worked example (epic mode)
+
+The same calculator, grown past the threshold. Note the epics are `eval`, `app`,
+`ui`, `term` — parts of the system — and *not* "core features" / "polish", which
+would be delivery stages.
+
+````markdown
+# Calc — Tasks
+
+A TUI calculator. See [design.md](design.md) for the full design.
+
+> **Progress log:** one file per epic under [progress/](progress/) records *how*
+> each task is carried out. Before starting a task, read your epic's progress file
+> in full, plus the `Epic summary` of every epic you depend on; keep your own
+> task's section updated as you work.
+
+## Design
+
+### Overview
+A keyboard- and mouse-driven TUI calculator that evaluates arithmetic
+expressions, inspired by the macOS Calculator.
+
+### Architecture
+- `eval` — parser/evaluator and the numeric tower. Pure logic, no UI.
+- `app` — application state machine, history, and the command layer.
+- `ui` — display, button grid, theming, and layout.
+- `term` — terminal setup, the event loop, and input decoding.
+
+### Key choices
+- Rust + Ratatui/crossterm for a single fast binary.
+- Evaluator returns `Result<Value, EvalError>`; the UI renders the message.
+
+## Dependencies
+
+Epic rollup (derived from the task graph):
+
+```mermaid
+graph TD
+  eval --> app
+  term --> app
+  app --> ui
+  term --> ui
 ```
+
+```mermaid
+graph TD
+  subgraph eval
+    eval/parser
+    eval/numeric-tower
+  end
+  subgraph term
+    term/skeleton
+    term/key-decode
+  end
+  subgraph app
+    app/state
+    app/history
+  end
+  subgraph ui
+    ui/buttons
+    ui/theme
+  end
+  eval/parser --> eval/numeric-tower
+  eval/parser --> app/state
+  term/skeleton --> term/key-decode
+  term/key-decode --> app/state
+  app/state --> app/history
+  app/state --> ui/buttons
+  term/skeleton --> ui/buttons
+  ui/buttons --> ui/theme
+```
+
+Dependency list (a task is executable when all its deps are `[x]` done):
+
+- `eval/parser`: (none)
+- `eval/numeric-tower`: `eval/parser`
+- `term/skeleton`: (none)
+- `term/key-decode`: `term/skeleton`
+- `app/state`: `eval/parser`, `term/key-decode`
+- `app/history`: `app/state`
+- `ui/buttons`: `app/state`, `term/skeleton`
+- `ui/theme`: `ui/buttons`
+
+## Tasks
+
+**Legend:** `[ ]` not started · `[~]` in progress · `[x]` done
+**Epic status** is derived from its tasks — don't record it separately.
+
+### eval — [progress](progress/eval.md)
+> Expression evaluation: parsing, precedence, and the numeric representation.
+
+- [x] [Expression parser](tasks/eval/parser.md)
+- [ ] [Numeric tower and precision](tasks/eval/numeric-tower.md)
+
+### term — [progress](progress/term.md)
+> Terminal lifecycle and raw input decoding.
+
+- [x] [Terminal setup and event loop](tasks/term/skeleton.md)
+- [ ] [Key decoding and chords](tasks/term/key-decode.md)
+
+### app — [progress](progress/app.md)
+> Application state machine and the commands that drive it.
+
+- [ ] [Application state and core logic](tasks/app/state.md)
+- [ ] [Expression history](tasks/app/history.md)
+
+### ui — [progress](progress/ui.md)
+> Everything drawn on screen.
+
+- [ ] [Render button grid with focus](tasks/ui/buttons.md)
+- [ ] [Theming and colour](tasks/ui/theme.md)
+````

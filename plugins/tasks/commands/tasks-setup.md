@@ -14,6 +14,8 @@ any files:
 - `${CLAUDE_PLUGIN_ROOT}/skills/task-tracking/references/tasks-md-format.md`
 - `${CLAUDE_PLUGIN_ROOT}/skills/task-tracking/references/task-file-format.md`
 - `${CLAUDE_PLUGIN_ROOT}/skills/task-tracking/references/progress-md-format.md`
+- `${CLAUDE_PLUGIN_ROOT}/skills/task-tracking/references/epics.md` — read this as
+  soon as the split looks like it may need epics
 
 The user's requirement is in `$ARGUMENTS`. It may be inline text, a **path to a
 plan/design doc**, or both — and the path may be wrapped in prose like
@@ -25,8 +27,19 @@ primary plan input and treat the rest of the argument as extra guidance. If
 Remember the operation is a conversation: understand the input, interview on what
 is unclear, discuss and converge on a concise high-level design, propose the task
 split with a Mermaid dependency graph, and **get explicit approval before writing
-any files**. Then create `docs/TASKS.md`, `docs/tasks/*.md`, and `docs/progress.md`, and confirm.
+any files**.
 
-When writing `docs/progress.md`, seed it with the header from `progress-md-format.md`
-and one stub `##` section per task created — each with `Status: not started` and a
-one-line goal — so every task already has a section to fill in as work begins.
+**Pick flat or epic mode before proposing the split**, since it decides the task
+ids. `epics.md` is authoritative on the threshold — either enough tasks or enough
+separable subsystems tips it to epic mode; otherwise stay flat. Epics are
+**structural** — parts of the system, derived from the design's architecture —
+never delivery stages.
+
+Then create the files and confirm:
+- flat: `docs/TASKS.md`, `docs/tasks/<task>.md`, `docs/progress.md`
+- epic: `docs/TASKS.md`, `docs/tasks/<epic>/<task>.md`, `docs/progress/<epic>.md`
+
+Seed each progress file with the header from `progress-md-format.md` and one stub
+`##` section per task — each with `Status: not started` and a one-line goal — so
+every task already has a section to fill in as work begins. In epic mode, each
+file also gets an `## Epic summary` placeholder above the task stubs.

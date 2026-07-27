@@ -161,7 +161,7 @@ docs/
 `TASKS.md` has three sections: a concise **Design**, a **Dependencies** graph
 (Mermaid diagram + a machine-readable list that's the source of truth for what's
 unblocked), and the **Tasks** checklist (`[ ]` todo · `[~]` in progress · `[x]`
-done), optionally grouped into phases.
+done).
 
 `progress.md` is the **execution log** beside the plan — one section per task
 recording *how* the work actually went: what was done, decisions made, what works
@@ -169,22 +169,52 @@ and what doesn't, and notes for dependent tasks. The setup operation seeds it, a
 agents read it before starting a task and update their section as they work, so
 parallel work merges cleanly and each task builds on what the last one learned.
 
+#### Epics, for plans that outgrow a flat list
+
+Past roughly a dozen tasks, a flat list and a single execution log stop being
+readable — every agent starting any task pays to read the whole project's history.
+At that point the plan shards by **epic**:
+
+```
+docs/
+  TASKS.md                    # still one file: design + graph + tasks by epic
+  tasks/<epic>/<name>.md      # task id is "<epic>/<name>"
+  progress/<epic>.md          # one log per epic, opening with an Epic summary
+  design.md                   # optional: full design spec, as in flat mode
+```
+
+Starting a task then means reading your epic's log plus the `Epic summary` of the
+epics you depend on — not everything.
+
+Epics are **structural**: an epic is a module, layer, or surface whose tasks share
+code and concepts, derived from the design's architecture. They are deliberately
+*not* delivery stages — "Phase 1" and "MVP" cut across every subsystem, so their
+tasks share no files and no context, which defeats the point.
+
+Dependencies stay task-level and canonical; epic status and the epic rollup diagram
+are derived from them, never authored separately. Small projects stay flat, and
+both layouts are fully supported — `/tasks-group` promotes a flat plan to epics
+once it has genuinely grown. (There's no reverse: to reshuffle a plan that's
+already epic mode, move tasks between epics one at a time with `/tasks-update`.)
+
 #### Commands
 
 | Command | Description |
 |---------|-------------|
 | `/tasks-setup [requirement]` | Interview, agree on a design, split into tasks, and (after approval) write `TASKS.md` + task files |
-| `/tasks-next` | List tasks whose dependencies are all done, with priority and parallelism suggestions |
-| `/tasks-update [change]` | Add/remove/split/change tasks and keep the dependency graph consistent |
+| `/tasks-next [epic]` | List tasks whose dependencies are all done, with priority and parallelism suggestions |
+| `/tasks-update [change]` | Add/remove/split/move/change tasks and keep the dependency graph consistent |
 | `/tasks-done [task]` | Mark a task complete and show what it just unblocked |
+| `/tasks-group [hint]` | Promote an oversized flat task list to structural epics and split the progress log per epic |
 
 The bundled `task-tracking` skill also triggers automatically when you ask about
 the plan, what to work on next, or say a piece of work is done — so you don't have
 to remember the commands.
 
 In Codex, invoke `$task-tracking` explicitly or ask naturally to set up a plan,
-find the next unblocked work, update the plan, or mark a task done. The Claude
-Code `/tasks-*` commands remain available and route to the same shared skill.
+find the next unblocked work, update the plan, mark a task done, or group the
+tasks into epics. The Claude Code `/tasks-*` commands remain available and route
+to the same shared skill.
 
 ### ship
 

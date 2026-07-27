@@ -121,8 +121,11 @@ When `tasks.tasksFile` is set and the current change clearly implements one task
 - Invoke the exact `skills.taskCompletion` helper when set. For
   `tasks:task-tracking`, request its **Mark a task done** operation.
 - Otherwise update the task checkbox in `docs/TASKS.md` and close out the matching
-  section in `docs/progress.md` directly, including the landed approach,
-  verification, and notes for dependent tasks.
+  progress section directly — `docs/progress.md`, or `docs/progress/<epic>.md` when
+  the plan is grouped into epics (task ids look like `<epic>/<task>`) — including
+  the landed approach, verification, and notes for dependent tasks. In the epic
+  case, also refresh that file's `Epic summary` if the change affects what other
+  epics need to know.
 
 Identify the task from the task goal, branch, diff, and session context. Ask the
 user if multiple tasks remain plausible. Skip when there is no task file or the

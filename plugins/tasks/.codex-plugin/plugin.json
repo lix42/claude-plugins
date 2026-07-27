@@ -1,7 +1,7 @@
 {
   "name": "tasks",
-  "version": "0.4.0",
-  "description": "Plan and track development work with Markdown task files and an explicit dependency graph.",
+  "version": "0.5.0",
+  "description": "Plan and track development work with Markdown task files, an explicit dependency graph, and optional epics for large plans.",
   "author": {
     "name": "lix42",
     "url": "https://github.com/lix42"
@@ -12,13 +12,14 @@
     "tasks",
     "planning",
     "roadmap",
+    "epics",
     "productivity"
   ],
   "skills": "./skills/",
   "interface": {
     "displayName": "Tasks",
     "shortDescription": "Plan and track dependency-aware project tasks",
-    "longDescription": "Turn a project or feature into a Markdown plan, dependency graph, per-task specifications, and progress log, then keep them synchronized as work changes.",
+    "longDescription": "Turn a project or feature into a Markdown plan, dependency graph, per-task specifications, and progress log, then keep them synchronized as work changes. Large plans group into structural epics so each read stays small.",
     "developerName": "lix42",
     "category": "Productivity",
     "capabilities": [
@@ -30,7 +31,8 @@
     "defaultPrompt": [
       "Use $task-tracking to break this project into dependency-aware tasks.",
       "Use $task-tracking to show me what work is unblocked next.",
-      "Use $task-tracking to mark my current task complete."
+      "Use $task-tracking to mark my current task complete.",
+      "Use $task-tracking to group my task list into epics."
     ]
   }
 }
