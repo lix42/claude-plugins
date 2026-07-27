@@ -22,8 +22,14 @@ Detect flat vs epic mode as the skill describes, and stop if the layout is mixed
 In epic mode, read the **task-level** dependency list — not the epic rollup, which
 is coarser and would report false blocks — and group the report by epic. Break
 near-ties in priority toward an epic that's already in progress, since staying in
-one part of the system beats context-switching. If `$ARGUMENTS` names an epic, lead
-with that epic and cover the rest briefly.
+one part of the system beats context-switching.
+
+If `$ARGUMENTS` names an epic, **report only that epic** — that's the whole point
+of scoping the query, and on a large plan an unrequested whole-plan dump is the
+context cost epics exist to remove. Add at most one closing line noting how many
+tasks are ready elsewhere, so the user knows the rest exists and can ask. If
+nothing in that epic is executable, say what's blocking it rather than silently
+widening the search.
 
 When the user picks a task to start, read the progress log first so prior decisions
 and gotchas carry forward: in flat mode all of `docs/progress.md`; in epic mode its

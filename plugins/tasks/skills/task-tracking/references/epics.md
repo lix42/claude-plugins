@@ -40,13 +40,17 @@ signal — check the whole layout, because a half-finished migration looks exact
 like an OR-heuristic's idea of epic mode, and treating it as epic mode means
 writing to the wrong progress file and compounding the damage.
 
+- **Uninitialized**: no `docs/TASKS.md`, no progress log in either shape, and no
+  task files. No plan exists yet, so there is no mode to detect — setup creates
+  one. An empty `docs/tasks/` directory is still uninitialized.
 - **Coherent flat**: `docs/progress.md` exists, `docs/tasks/` holds only files (no
   subdirectories), no `docs/progress/` directory.
 - **Coherent epic**: `docs/progress/` exists, `docs/tasks/` holds only
   subdirectories (no loose task files), no `docs/progress.md`.
-- **Anything else is a mixed layout** — loose task files beside epic directories,
-  both `progress.md` and `progress/`, an epic directory with no matching progress
-  file. **Stop and report it. Do not guess a mode and do not keep writing.**
+- **Any other combination of existing plan artifacts is a mixed layout** — loose
+  task files beside epic directories, both `progress.md` and `progress/`, an epic
+  directory with no matching progress file. **Stop and report it. Do not guess a
+  mode and do not keep writing.**
 
 A mixed layout almost always means an interrupted migration. To recover: if
 nothing has been committed, `git checkout` / `git clean` back to the pre-migration
@@ -125,6 +129,12 @@ Sizing:
   (`color/color-management` → `color/management` is fine, but `io/io.md` is not),
   keep the fuller name. **This is a rename**, so everything in "Moving a single
   task between epics" below applies to it.
+- **Ids must be unique, and stripping can collide.** An epic holding both
+  `parser.md` and `eval-parser.md` maps both to `eval/parser`. Check the full set
+  of proposed ids for duplicates *before* the first write; on a collision, keep the
+  colliding task's fuller stem rather than inventing a suffix. Two tasks whose
+  names collapse to the same name are also worth a second look — they may be
+  duplicates, or badly named.
 
 Mermaid accepts `/` in bare node ids, so `core/foundation --> color/p3-output`
 needs no quoting or id-mapping layer. Do not invent `core_foundation`-style
@@ -153,8 +163,10 @@ incrementally.
    record, for the check in step 4:
    - the current `HEAD` sha,
    - the exact output of `git status --porcelain` (expected: empty),
-   - **the complete list of `##` section titles in `progress.md`**, which is the
-     baseline for the data-loss check in step 9.
+   - **the complete list of `##` section titles in `progress.md`, plus a
+     fingerprint of each section's body** (line count, or a hash — anything you can
+     re-derive after the split). Both are the baseline for the data-loss checks in
+     step 9; titles alone can't prove the entries survived.
 2. **Derive the grouping by structure**, per the rules above. **Ignore any
    existing phase/stage headings in `TASKS.md`** — they group by delivery, and
    reusing them produces exactly the incoherent epics this operation exists to
@@ -163,14 +175,20 @@ incrementally.
 3. **Propose it and get explicit approval.** Show the epic list with a one-line
    scope for each, the tasks under each, the **new id** for every task (the stem
    rule above renames some of them), and any placement that was a judgment call.
-   Write nothing before the user signs off.
+   Before proposing, **check the proposed ids are unique** — the prefix-stripping
+   rule can collapse two names onto one, and discovering that mid-`git mv` leaves
+   a half-moved tree. Write nothing before the user signs off.
 4. **Re-verify the state you recorded, immediately before the first write.**
    Approval is a pause of unknown length: the user, another agent, or an editor may
    have changed the plan while you waited. Re-read `HEAD` and `git status
    --porcelain` and compare them to step 1. **If either changed, abort, re-read the
    plan, and re-propose** — do not migrate from a stale reading, and never sweep
    someone else's edits into this commit.
-5. **Move the task files** with `git mv` into `docs/tasks/<epic>/<task>.md`,
+5. **Create the epic directories, then move the task files.** `mkdir -p
+   docs/tasks/<epic>` for every approved epic *first* — a coherent flat layout has
+   no epic subdirectories, and `git mv` into a missing parent fails with
+   `fatal: renaming ... failed: No such file or directory` (exit 128), aborting on
+   the very first task. Then `git mv` each file to `docs/tasks/<epic>/<task>.md`,
    applying the redundant-prefix rule above to each stem. Use `git mv`, not
    write-then-delete, so the diff shows renames and the history survives.
 6. **Rewrite `TASKS.md` into its epic-mode shape.** Every element listed in
@@ -182,19 +200,33 @@ incrementally.
    - **Dependency list** — both sides of every entry, using the new ids.
    - **Task-level Mermaid diagram** — new node ids, wrapped in one `subgraph` per
      epic.
-   - **Epic rollup diagram** — *generate it*, above the task-level one. Project
-     each cross-epic task edge onto its epics and drop intra-epic edges and
-     duplicates. It doesn't exist in a flat plan, so there is nothing to rewrite;
-     if you skip it, the plan fails its own validation on the next query.
+   - **Epic rollup diagram** — *generate it*, above the task-level one. **Emit a
+     bare node line for every epic first**, then project each cross-epic task edge
+     onto its epics, dropping intra-epic edges and duplicates. Declaring the nodes
+     up front matters: an epic with no cross-epic dependencies has no edges to
+     project, so an edges-only rollup would silently omit a whole subsystem that
+     the task list clearly contains. It doesn't exist in a flat plan, so there is
+     nothing to rewrite; if you skip it, the plan fails its own validation on the
+     next query.
    - **Task list** — regrouped under `### <epic> — [progress](progress/<epic>.md)`
      headings, each with a `>` scope line, links now `tasks/<epic>/<task>.md`.
    - **Delete the phase headings.** Their delivery information is not preserved by
      this format. If the user wants it kept, offer to note it in the epic scope
      lines or in the task files — but do not leave phase headings in `TASKS.md`.
-7. **Fix the per-task `Dependencies` links.** They're relative within
-   `docs/tasks/`, so a same-epic dep is `other-task.md` and a cross-epic dep is
-   `../other-epic/other-task.md`. Every task file needs checking, not just the
-   moved-across-epics ones — the hop count changed for all of them.
+7. **Fix the relative links in every moved task file — all of them, not just the
+   `Dependencies` section.** Each file moved one directory deeper, so *every*
+   relative path in it is now off by one level:
+   - `Dependencies` links are relative within `docs/tasks/`: a same-epic dep is
+     `other-task.md`, a cross-epic dep is `../other-epic/other-task.md`.
+   - **Links anywhere else in the body** — Design, How to Verify, prose — need the
+     same correction. A user-authored `../design.md` used to resolve to
+     `docs/design.md` and now points at the nonexistent `docs/tasks/design.md`;
+     it needs a third level (`../../design.md`). Links to repository source files
+     shift by one level too.
+   - Absolute paths, URLs, and in-page anchors are unaffected — leave them alone.
+
+   Scan each moved file for `](` and check every hit. Every task file needs this,
+   not just the ones whose epic assignment felt like a change.
 8. **Split `progress.md`** into `docs/progress/<epic>.md`:
    - Give each file the **header** from `progress-md-format.md`:
      `# <Project> — <epic> Progress Log` plus the intro paragraph. A migrated epic
@@ -207,19 +239,35 @@ incrementally.
      to the bare task name** (the part after the `/`, per `progress-md-format.md`);
      **the body — every log entry — moves verbatim.** Never rewrite, summarize,
      reorder, or drop a log entry. This is a history.
+   - **The one permitted body edit: relative link targets.** The sections move from
+     `docs/progress.md` down into `docs/progress/<epic>.md`, so a link like
+     `tasks/parser.md` would start resolving under `docs/progress/tasks/`. Retarget
+     such links for the extra level (`../tasks/<epic>/parser.md`), and account for
+     any task stem you renamed. Change only what's inside the `(...)` — the visible
+     link text and every other word stay exactly as written. Fixing a pointer so it
+     still resolves preserves the history; letting it rot silently does not.
    - **Homeless sections** — log sections that name no task (planning notes,
      review triage, cross-cutting write-ups) go to `docs/progress/_unassigned.md`
      verbatim, and you tell the user they're there. Do not force them into an
      epic and do not drop them.
    - Delete `docs/progress.md` once every section has a new home.
 9. **Validate**, and report the result of each check:
-   - **No history lost.** Take the baseline section-title list from step 1 and
+   - **No section lost.** Take the baseline section-title list from step 1 and
      assert **set equality** against the union of every task section now in
      `docs/progress/*.md` plus every section in `_unassigned.md`, comparing on the
      task the section is *about* (its title changed when the stem did). Exclude
      `Epic summary` sections from both sides — they are newly generated, so a raw
      count will never match and is not the check. Set equality also catches a
      section filed under the wrong epic, which a count never would.
+   - **No history lost *inside* a section.** Matching titles prove nothing about
+     the entries beneath them: a migration that keeps every heading and truncates
+     the logs passes the check above. Compare each section's **body** against the
+     original — line count and content, or a per-section fingerprint taken before
+     the split. The only differences allowed are the heading rename and the
+     retargeted relative links from step 8; anything else means content was lost.
+     This is the check that actually enforces "verbatim".
+   - **Every relative link resolves.** Check the moved task files and the split
+     progress files — both changed depth, and both were edited by hand.
    - **Every epic file has exactly one `Epic summary`**, and every epic has a file.
    - Every id in the dependency list resolves to an existing
      `docs/tasks/<epic>/<task>.md`, and every task file appears in the list.
@@ -228,7 +276,8 @@ incrementally.
      the task-level diagram agree. (The *rollup* may contain cycles legitimately —
      see the note below. Don't flag those.)
    - Every rollup edge is backed by at least one cross-epic task edge, and every
-     cross-epic task edge appears in the rollup.
+     cross-epic task edge appears in the rollup. **Every epic appears in the rollup
+     as a node**, including ones with no cross-epic edges at all.
    - The layout is **coherent epic mode** by the detection rules above: no phase
      headings, no `docs/progress.md`, no loose files left in `docs/tasks/`.
 10. **Report** the epic list with task counts, every task whose id changed,

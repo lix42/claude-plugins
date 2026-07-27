@@ -70,14 +70,23 @@ The setup operation seeds it.
 Before reading or writing anything, determine the mode from the **whole layout**,
 not one signal:
 
+- **Uninitialized** — no `docs/TASKS.md`, no `docs/progress.md`, no
+  `docs/progress/`, and no task files under `docs/tasks/`. There is no plan yet.
+  This is the normal starting state, and **only the setup operation may act on
+  it** — it creates the plan in whichever mode step 4 chooses. Every other
+  operation should say there's no plan and offer setup.
 - **Flat** — `docs/progress.md` exists, `docs/tasks/` holds only files, no
   `docs/progress/`.
 - **Epic** — `docs/progress/` exists, `docs/tasks/` holds only subdirectories, no
   `docs/progress.md`.
-- **Mixed** — anything else. **Stop and report it**; do not guess a mode and keep
-  writing. A mixed layout is almost always an interrupted migration, and treating
-  it as epic mode means writing to the wrong progress file. `references/epics.md`
-  has the recovery path.
+- **Mixed** — some plan artifacts exist but they don't form one coherent layout
+  above. **Stop and report it**; do not guess a mode and keep writing. A mixed
+  layout is almost always an interrupted migration, and treating it as epic mode
+  means writing to the wrong progress file. `references/epics.md` has the recovery
+  path.
+
+An empty or absent `docs/` is uninitialized, not mixed — an existing but empty
+`docs/tasks/` directory doesn't make a plan.
 
 Then stay in that mode. Both are fully supported — a flat project is not a broken
 project. Operation 5 promotes a flat plan to epic mode; there is no reverse
@@ -167,8 +176,9 @@ didn't help shape is a plan they won't trust. Work through it:
 
 Trigger: "what should I work on next", "what's unblocked / ready", "what can I
 parallelize", "show me the plan status". The user may scope it to one epic —
-"what's next in `color`" — in which case report that epic first and the rest
-briefly.
+"what's next in `color`" — in which case **report only that epic**, plus at most a
+one-line note that N tasks are ready elsewhere. Scoping is a request for less;
+answering with the whole plan anyway spends exactly the context epics save.
 
 1. Read `TASKS.md`: each task's status and its dependencies (from the canonical
    Dependencies list). Read the **task-level** graph, not the epic rollup — the
@@ -307,8 +317,10 @@ Whenever you read or write the dependency graph, check:
   the path its id implies.
 - **Consistency** — the Mermaid diagram, the canonical list, and per-task
   Dependencies sections name the same edges. In epic mode, also check the epic
-  rollup: every rollup edge is backed by at least one cross-epic task edge, and
-  every cross-epic task edge appears in the rollup.
+  rollup: every rollup edge is backed by at least one cross-epic task edge, every
+  cross-epic task edge appears in the rollup, and **every epic appears as a node**
+  — an epic with no cross-epic edges must still be declared, or it drops out of
+  the diagram entirely.
 
 **A cycle in the epic rollup is not a defect.** Projecting an acyclic task graph
 onto epics routinely produces one — `core/types --> ui/buttons` plus

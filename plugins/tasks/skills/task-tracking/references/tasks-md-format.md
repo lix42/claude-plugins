@@ -94,10 +94,13 @@ structural. If they've drifted apart, one of the two is wrong.>
 agreement.>
 
 Epic rollup (derived from the task graph — do not author epic-level edges here;
-regenerate this whenever the task edges change):
+regenerate this whenever the task edges change). Declare every epic as a node, then
+add the projected edges, so an epic with no cross-epic dependencies still appears:
 
 ```mermaid
 graph TD
+  core
+  color
   core --> color
 ```
 
@@ -161,9 +164,11 @@ Dependency list (a task is executable when all its deps are `[x]` done):
   visualizes it, the epic rollup summarizes it, and per-task files mirror it.
   When any of them disagree, the list wins.
 - **The epic rollup is derived, never authored.** An edge `core --> color` means
-  "some task in `color` depends on some task in `core`". Build it by projecting
-  every cross-epic task edge onto its epics, then dropping intra-epic edges and
-  duplicates. Don't add epic edges that no task edge backs, and don't use the
+  "some task in `color` depends on some task in `core`". Build it by declaring a
+  bare node for **every** epic, then projecting every cross-epic task edge onto its
+  epics and dropping intra-epic edges and duplicates. Declaring the nodes first is
+  what keeps an epic with no cross-epic dependencies from vanishing from the
+  diagram entirely. Don't add epic edges that no task edge backs, and don't use the
   rollup to answer "what's next" — it is coarser than the real graph and would
   report false blocks.
 - **A cycle in the rollup is not a defect.** An acyclic task graph can project to
@@ -277,6 +282,10 @@ Epic rollup (derived from the task graph):
 
 ```mermaid
 graph TD
+  eval
+  term
+  app
+  ui
   eval --> app
   term --> app
   app --> ui
