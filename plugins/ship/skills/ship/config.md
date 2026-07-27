@@ -174,8 +174,11 @@ Missing helpers never block shipping:
 - `documentation`: review and surgically update the selected existing instruction
   file only for durable, non-obvious guidance; if none exists or nothing durable
   changed, do not write one.
-- `taskCompletion`: update `docs/TASKS.md` and the matching `docs/progress.md`
-  section directly.
+- `taskCompletion`: update `docs/TASKS.md` and the matching progress section
+  directly — `docs/progress.md`, or `docs/progress/<epic>.md` for epic-grouped
+  plans, refreshing that file's `Epic summary` when the change affects other epics.
+  Choose by inspecting the layout, and skip completion entirely if it is neither
+  coherently flat nor coherently epic.
 - `publishing`: use `git` and `gh` directly.
 - `ciRepair`: inspect GitHub checks and logs with `gh`, reproduce locally, fix,
   commit, and push.
