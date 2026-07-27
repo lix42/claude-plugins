@@ -124,16 +124,22 @@ When `tasks.tasksFile` is set and the current change clearly implements one task
   progress section directly, including the landed approach, verification, and notes
   for dependent tasks. Pick the progress file from the **layout**, not from the
   shape of the task id:
-  - `docs/progress.md` exists, `docs/tasks/` holds only files → write there.
-  - `docs/progress/` exists, `docs/tasks/` holds only subdirectories → write
-    `docs/progress/<epic>.md`, and refresh that file's `Epic summary` if the change
-    affects what other epics need to know.
-  - **Anything else — both present, one missing, loose files beside epic
-    directories — is a mixed layout. Skip task completion**, say the plan looks
-    like an interrupted migration and needs recovering first, and carry on with the
-    rest of the ship steps. A slash in the task id is not proof the split finished;
-    editing a half-written `docs/progress/<epic>.md` on the way to publishing is
-    how a partial migration becomes a permanent one.
+  - `docs/TASKS.md` and `docs/progress.md` exist, `docs/tasks/` holds only files →
+    write to `docs/progress.md`.
+  - `docs/TASKS.md` and `docs/progress/` exist, `docs/tasks/` holds only
+    subdirectories, **and every epic directory has a matching
+    `docs/progress/<epic>.md`** → write to your task's `docs/progress/<epic>.md`,
+    and refresh that file's `Epic summary` if the change affects what other epics
+    need to know.
+  - **Anything else — both present, one missing, `TASKS.md` absent, loose files
+    beside epic directories, or an epic with no progress file — is a mixed layout.
+    Skip task completion**, say the plan looks like an interrupted migration and
+    needs recovering first, and carry on with the rest of the ship steps. A slash
+    in the task id is not proof the split finished, and neither is the mere
+    existence of `docs/progress/`: a migration that moved every task file but only
+    wrote some of the logs looks like epic mode until you check coverage. Creating
+    the missing log here, on the way to publishing, is how a partial migration
+    becomes a permanent one.
 
 Identify the task from the task goal, branch, diff, and session context. Ask the
 user if multiple tasks remain plausible. Skip when there is no task file or the

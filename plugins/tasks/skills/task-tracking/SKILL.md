@@ -226,10 +226,10 @@ Trigger: "add a task for X", "we don't need Y anymore", "split Z into two",
 Plans drift as you learn. Keep the files honest:
 
 - **Add:** create the task file (in epic mode, under the epic that owns the code
-  it changes), add the item to the task list, add a stub section to the epic's
-  progress file, and wire it into the Dependencies section (both the Mermaid
-  diagram and the list) — its upstream deps and anything that should now depend
-  on it.
+  it changes), add the item to the task list, add a stub section to the progress
+  log — `docs/progress.md` in flat mode, `docs/progress/<epic>.md` in epic mode —
+  and wire it into the Dependencies section (both the Mermaid diagram and the
+  list) — its upstream deps and anything that should now depend on it.
 - **Remove:** delete (or archive) the task file, remove it from the list and the
   Dependencies section, and **repair dependents** — any task that depended on the
   removed one must be re-pointed or explicitly freed, never left dangling.

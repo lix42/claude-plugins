@@ -63,13 +63,26 @@ A mixed layout almost always means an interrupted migration. To recover:
 
 - If **nothing has been committed**, revert to the pre-migration state and re-run
   the migration from the top — it is designed to be restartable from a clean flat
-  plan, not resumable from the middle. **Scope the cleanup to the plan.** Show the
-  user a dry run first (`git status`, and `git clean -nd docs/`), then restore only
-  the migration's own paths — `git checkout -- docs/` for tracked files and, for
-  the generated ones, `git clean -fd` **with an explicit `docs/` pathspec**. Never
-  run an unscoped `git clean -fd`: the pathspec is optional and `-d` takes whole
-  directories, so a bare invocation deletes every untracked file in the repository,
-  including work created after the migration started that has nothing to do with it.
+  plan, not resumable from the middle. **Scope the cleanup to the plan**, and show
+  the user a dry run first (`git status`, and `git clean -nd docs/`). Then:
+
+  ```sh
+  git restore --source=HEAD --staged --worktree -- docs/   # tracked files: index AND worktree
+  git clean -fd docs/                                      # generated files: explicit pathspec
+  ```
+
+  Both details matter, and each has a failure mode that looks like success:
+
+  - **`git checkout -- docs/` is not enough.** With no tree-ish it restores the
+    worktree *from the index*, so a `git mv` that is already staged stays staged —
+    the command exits 0, changes nothing, and leaves the tree exactly as broken as
+    it found it. Verified on git 2.55. `git restore --source=HEAD --staged
+    --worktree` resets both index and worktree from the last commit, which is what
+    "back to pre-migration" actually means.
+  - **Never run an unscoped `git clean -fd`.** The pathspec is optional and `-d`
+    takes whole directories, so a bare invocation deletes every untracked file in
+    the repository, including work created after the migration started that has
+    nothing to do with it.
 - If the partial state was **already committed**, tell the user which artifacts
   exist on each side and let them choose the direction before you touch anything.
 
@@ -81,7 +94,11 @@ should not push migration on one that doesn't need it.
 Introduce epics when **any** of these holds:
 
 - the plan has **more than ~12 tasks**, or
-- the work spans **3 or more separable subsystems** that different tasks touch, or
+- the work spans **3 or more separable subsystems** that different tasks touch
+  **and has enough tasks to give each resulting epic about three** — a 6-task plan
+  across 3 subsystems does not qualify, because 2-task epics violate the sizing
+  rule below and folding them together would merge unrelated subsystems. When the
+  seams are real but the tasks are few, stay flat and revisit as the plan grows, or
 - **`progress.md` has outgrown a single comfortable read** — past a few hundred
   lines, so that starting any task means paging through the whole project's
   history. This is the symptom epics were built for, and it can arrive before the
@@ -189,9 +206,11 @@ incrementally.
    - the current `HEAD` sha,
    - the exact output of `git status --porcelain` (expected: empty),
    - **the complete list of `##` section titles in `progress.md`, plus a
-     fingerprint of each section's body** (line count, or a hash — anything you can
-     re-derive after the split). Both are the baseline for the data-loss checks in
-     step 9; titles alone can't prove the entries survived.
+     content fingerprint of each section's body** — a hash of the body text, or the
+     exact body itself. **Not a line count:** content can be deleted, reordered, or
+     rewritten without changing how many lines it occupies, which defeats the guard
+     in precisely the case it exists to catch. Both are the baseline for the
+     data-loss checks in step 9; titles alone can't prove the entries survived.
 2. **Derive the grouping by structure**, per the rules above. **Ignore any
    existing phase/stage headings in `TASKS.md`** — they group by delivery, and
    reusing them produces exactly the incoherent epics this operation exists to
@@ -250,8 +269,11 @@ incrementally.
      shift by one level too.
    - Absolute paths, URLs, and in-page anchors are unaffected — leave them alone.
 
-   Scan each moved file for `](` and check every hit. Every task file needs this,
-   not just the ones whose epic assignment felt like a change.
+   **Scan for every link form, not just `](`.** Inline links are the common case,
+   but a hand-edited task file may also carry reference definitions
+   (`[spec]: ../design.md` on its own line, used as `[design][spec]`) and raw HTML
+   (`<a href="...">`). A `](`-only scan silently misses both. Every task file needs
+   this, not just the ones whose epic assignment felt like a change.
 8. **Split `progress.md`** into `docs/progress/<epic>.md`. **`mkdir -p
    docs/progress` first** — a coherent flat layout has no such directory, and a
    shell redirect or a writer that won't create parents fails on the first file,
@@ -296,7 +318,14 @@ incrementally.
      retargeted relative links from step 8; anything else means content was lost.
      This is the check that actually enforces "verbatim".
    - **Every relative link resolves.** Check the moved task files and the split
-     progress files — both changed depth, and both were edited by hand.
+     progress files — both changed depth, and both were edited by hand. Check every
+     link form, not just `](`.
+   - **No inbound link left dangling.** Every task moved, so anything *outside* the
+     plan that pointed at an old path — `docs/architecture.md` linking to
+     `tasks/parser.md`, a README, an ADR — is now broken. Search the repository for
+     references to the old task paths, fix the ones that are clearly plan
+     references, and **list anything you didn't change in the report** rather than
+     editing unrelated documents silently.
    - **Every epic file has exactly one `Epic summary`**, and every epic has a file.
    - Every id in the dependency list resolves to an existing
      `docs/tasks/<epic>/<task>.md`, and every task file appears in the list.
@@ -338,7 +367,10 @@ observation, not a graph defect.
 Once in epic mode, reorganizing one task is an **update** operation, not a
 migration. It is still a rename, so do all of it:
 
-1. `git mv docs/tasks/<old-epic>/<task>.md docs/tasks/<new-epic>/<task>.md`.
+1. `git mv docs/tasks/<old-epic>/<task>.md docs/tasks/<new-epic>/<task>.md`. If the
+   destination epic is **new**, `mkdir -p` its task directory and create its
+   progress file with a header and `Epic summary` first — `git mv` into a missing
+   parent fails, and an epic directory with no progress file is a mixed layout.
 2. Rewrite the id in the dependency list (its own entry *and* every entry that
    names it), the Mermaid diagram, and the task list.
 3. Fix the relative links **everywhere in the moved file, not just its
@@ -346,11 +378,19 @@ migration. It is still a rename, so do all of it:
    of `../` hops changes in both directions. A link from the moved file's Design or
    How-to-Verify prose to a task that used to be a same-epic neighbour
    (`history.md`) is now cross-epic (`../app/history.md`), and graph validation
-   won't catch it because it never looked outside `Dependencies`. Scan the moved
-   file for `](` and check every hit.
+   won't catch it because it never looked outside `Dependencies`. Check every link
+   form — inline, reference definitions, and raw HTML — not just `](`.
 4. Move its `##` section from `progress/<old-epic>.md` to `progress/<new-epic>.md`:
    the log entries move verbatim, and the heading changes only if the stem did.
    Update both files' `Epic summary` if the move changes what another epic needs
    to know.
-5. Re-validate the graph, and regenerate the epic rollup — a move can add or
+5. **Retarget progress-log links that point at the moved task.** Its path changed,
+   so an entry anywhere in `docs/progress/` reading `../tasks/app/state.md` now
+   points at nothing. Search every progress file — including the section you just
+   moved — and fix the destinations, leaving the surrounding log text untouched.
+   The same "retargeting a pointer is the one permitted body edit" rule from the
+   full migration applies here.
+6. Search the repository for inbound links to the task's **old** path, the same as
+   the migration does — other documents don't get updated by the graph validation.
+7. Re-validate the graph, and regenerate the epic rollup — a move can add or
    remove cross-epic edges.
