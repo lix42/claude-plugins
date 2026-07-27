@@ -121,11 +121,19 @@ When `tasks.tasksFile` is set and the current change clearly implements one task
 - Invoke the exact `skills.taskCompletion` helper when set. For
   `tasks:task-tracking`, request its **Mark a task done** operation.
 - Otherwise update the task checkbox in `docs/TASKS.md` and close out the matching
-  progress section directly — `docs/progress.md`, or `docs/progress/<epic>.md` when
-  the plan is grouped into epics (task ids look like `<epic>/<task>`) — including
-  the landed approach, verification, and notes for dependent tasks. In the epic
-  case, also refresh that file's `Epic summary` if the change affects what other
-  epics need to know.
+  progress section directly, including the landed approach, verification, and notes
+  for dependent tasks. Pick the progress file from the **layout**, not from the
+  shape of the task id:
+  - `docs/progress.md` exists, `docs/tasks/` holds only files → write there.
+  - `docs/progress/` exists, `docs/tasks/` holds only subdirectories → write
+    `docs/progress/<epic>.md`, and refresh that file's `Epic summary` if the change
+    affects what other epics need to know.
+  - **Anything else — both present, one missing, loose files beside epic
+    directories — is a mixed layout. Skip task completion**, say the plan looks
+    like an interrupted migration and needs recovering first, and carry on with the
+    rest of the ship steps. A slash in the task id is not proof the split finished;
+    editing a half-written `docs/progress/<epic>.md` on the way to publishing is
+    how a partial migration becomes a permanent one.
 
 Identify the task from the task goal, branch, diff, and session context. Ask the
 user if multiple tasks remain plausible. Skip when there is no task file or the

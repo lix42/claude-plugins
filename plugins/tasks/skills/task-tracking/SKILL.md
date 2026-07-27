@@ -75,15 +75,16 @@ not one signal:
   This is the normal starting state, and **only the setup operation may act on
   it** — it creates the plan in whichever mode step 4 chooses. Every other
   operation should say there's no plan and offer setup.
-- **Flat** — `docs/progress.md` exists, `docs/tasks/` holds only files, no
-  `docs/progress/`.
-- **Epic** — `docs/progress/` exists, `docs/tasks/` holds only subdirectories, no
-  `docs/progress.md`.
+- **Flat** — `docs/TASKS.md` and `docs/progress.md` exist, `docs/tasks/` holds only
+  files, no `docs/progress/`.
+- **Epic** — `docs/TASKS.md` and `docs/progress/` exist, `docs/tasks/` holds only
+  subdirectories, no `docs/progress.md`.
 - **Mixed** — some plan artifacts exist but they don't form one coherent layout
-  above. **Stop and report it**; do not guess a mode and keep writing. A mixed
-  layout is almost always an interrupted migration, and treating it as epic mode
-  means writing to the wrong progress file. `references/epics.md` has the recovery
-  path.
+  above — including task files and a log with **no `TASKS.md`**, which is a plan
+  missing its index, not a plan in flat mode. **Stop and report it**; do not guess
+  a mode and keep writing. A mixed layout is almost always an interrupted
+  migration, and treating it as epic mode means writing to the wrong progress file.
+  `references/epics.md` has the recovery path.
 
 An empty or absent `docs/` is uninitialized, not mixed — an existing but empty
 `docs/tasks/` directory doesn't make a plan.
@@ -105,7 +106,9 @@ Read these before creating or editing files so the output stays consistent.
 Tasks live at the **project root**, under `docs/`. Find the root by walking up
 to the nearest `.git` (or an existing `docs/TASKS.md`). If you can't tell, or
 there are multiple candidate roots, ask the user which project they mean rather
-than guessing. Create `docs/` and `docs/tasks/` if they don't exist yet.
+than guessing. **Setup** creates `docs/` and the task directories if they don't
+exist yet; the other operations don't create anything — if the layout is
+uninitialized, they say there's no plan and offer setup.
 
 ## Operations
 
@@ -143,7 +146,9 @@ didn't help shape is a plan they won't trust. Work through it:
    then pick the mode, because the mode determines the ids you're about to
    propose. Use **epic mode** when the split will yield **more than ~12 tasks** or
    the work spans **3+ separable subsystems** — either one is enough; otherwise
-   stay flat. When you go epic, derive the epics from the design's architecture —
+   stay flat. (`epics.md` adds a third trigger, an oversized progress log, which
+   only applies to plans already underway.) When you go epic, derive the epics from
+   the design's architecture —
    they are parts of the system, never delivery stages. Read `references/epics.md`
    before deciding; it is authoritative on the threshold.
 5. **Propose the task split.** Present the final concise design, then the tasks —
@@ -304,10 +309,12 @@ refuse to touch. What the checklist covers, in outline:
    `_unassigned.md` rather than dropped.
 7. **Validate** — the data-loss check is **set equality** on section titles
    excluding the generated `Epic summary` sections, never a raw count.
-8. **Report, stage with `git add -A`, and stop without committing.**
+8. **Report, stage the migration's own paths, and stop without committing** —
+   never `git add -A`, which would sweep in anything edited while the migration
+   ran.
 
-Don't run this on a plan that doesn't need it — if it's under the threshold in
-`epics.md` on both counts, say so and leave it flat.
+Don't run this on a plan that doesn't need it — if it's under every trigger in
+`epics.md`, say so and leave it flat.
 
 ## Validate the graph
 

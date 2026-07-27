@@ -43,33 +43,58 @@ writing to the wrong progress file and compounding the damage.
 - **Uninitialized**: no `docs/TASKS.md`, no progress log in either shape, and no
   task files. No plan exists yet, so there is no mode to detect — setup creates
   one. An empty `docs/tasks/` directory is still uninitialized.
-- **Coherent flat**: `docs/progress.md` exists, `docs/tasks/` holds only files (no
-  subdirectories), no `docs/progress/` directory.
-- **Coherent epic**: `docs/progress/` exists, `docs/tasks/` holds only
-  subdirectories (no loose task files), no `docs/progress.md`.
+- **Coherent flat**: `docs/TASKS.md` exists, `docs/progress.md` exists,
+  `docs/tasks/` holds only files (no subdirectories), no `docs/progress/`.
+- **Coherent epic**: `docs/TASKS.md` exists, `docs/progress/` exists, `docs/tasks/`
+  holds only subdirectories (no loose task files), no `docs/progress.md`.
 - **Any other combination of existing plan artifacts is a mixed layout** — loose
   task files beside epic directories, both `progress.md` and `progress/`, an epic
-  directory with no matching progress file. **Stop and report it. Do not guess a
-  mode and do not keep writing.**
+  directory with no matching progress file, **or task files and a log with no
+  `TASKS.md` at all**. **Stop and report it. Do not guess a mode and do not keep
+  writing.**
 
-A mixed layout almost always means an interrupted migration. To recover: if
-nothing has been committed, `git checkout` / `git clean` back to the pre-migration
-state and re-run the migration from the top — it is designed to be restartable
-from a clean flat plan, not resumable from the middle. If the partial state was
-already committed, tell the user which artifacts exist on each side and let them
-choose the direction before you touch anything.
+`TASKS.md` is required for either layout to count as coherent: it holds the
+canonical dependency graph and the authoritative status. Task files and a log
+without it aren't a plan in a readable state — they're a plan with its index
+missing, and operating on them means updating status that nothing records and
+answering "what's next" from a graph that doesn't exist.
+
+A mixed layout almost always means an interrupted migration. To recover:
+
+- If **nothing has been committed**, revert to the pre-migration state and re-run
+  the migration from the top — it is designed to be restartable from a clean flat
+  plan, not resumable from the middle. **Scope the cleanup to the plan.** Show the
+  user a dry run first (`git status`, and `git clean -nd docs/`), then restore only
+  the migration's own paths — `git checkout -- docs/` for tracked files and, for
+  the generated ones, `git clean -fd` **with an explicit `docs/` pathspec**. Never
+  run an unscoped `git clean -fd`: the pathspec is optional and `-d` takes whole
+  directories, so a bare invocation deletes every untracked file in the repository,
+  including work created after the migration started that has nothing to do with it.
+- If the partial state was **already committed**, tell the user which artifacts
+  exist on each side and let them choose the direction before you touch anything.
 
 Both modes are fully supported. A flat project is not a broken project, and you
 should not push migration on one that doesn't need it.
 
 ## When to introduce epics
 
-Introduce epics when **either** holds:
+Introduce epics when **any** of these holds:
 
 - the plan has **more than ~12 tasks**, or
-- the work spans **3 or more separable subsystems** that different tasks touch.
+- the work spans **3 or more separable subsystems** that different tasks touch, or
+- **`progress.md` has outgrown a single comfortable read** — past a few hundred
+  lines, so that starting any task means paging through the whole project's
+  history. This is the symptom epics were built for, and it can arrive before the
+  task count does.
 
-Stay flat below that. Epics on a 6-task plan add ceremony and buy nothing — one
+One caveat on the third trigger: if the log is huge but the plan is genuinely
+small and has no structural seams, sharding it into two epics won't help much. A
+bloated log on a small plan usually means individual task sections have grown into
+design essays, and the fix is to move that material into the task files where it
+belongs (see `progress-md-format.md`). Check that first; reach for epics when the
+log is long because the *project* is big, not because a few entries are.
+
+Stay flat below all three. Epics on a 6-task plan add ceremony and buy nothing — one
 directory per epic, one progress file per epic, and longer ids, all to organize a
 list that already fits on a screen.
 
@@ -227,7 +252,11 @@ incrementally.
 
    Scan each moved file for `](` and check every hit. Every task file needs this,
    not just the ones whose epic assignment felt like a change.
-8. **Split `progress.md`** into `docs/progress/<epic>.md`:
+8. **Split `progress.md`** into `docs/progress/<epic>.md`. **`mkdir -p
+   docs/progress` first** — a coherent flat layout has no such directory, and a
+   shell redirect or a writer that won't create parents fails on the first file,
+   stranding the tree in the mixed state everything downstream refuses to touch.
+   Then, for each epic:
    - Give each file the **header** from `progress-md-format.md`:
      `# <Project> — <epic> Progress Log` plus the intro paragraph. A migrated epic
      file must be indistinguishable from one `/tasks-setup` would have written.
@@ -281,9 +310,17 @@ incrementally.
    - The layout is **coherent epic mode** by the detection rules above: no phase
      headings, no `docs/progress.md`, no loose files left in `docs/tasks/`.
 10. **Report** the epic list with task counts, every task whose id changed,
-    anything parked in `_unassigned.md`, and the validation results. **Stage
-    everything with `git add -A` and stop — do not commit.** The user reviews one
+    anything parked in `_unassigned.md`, and the validation results. Then **stage
+    the migration's own paths and stop — do not commit.** The user reviews one
     staged diff and commits it themselves.
+
+    **Stage explicitly, not with `git add -A`.** The migration takes a while, and
+    `-A` stages every tracked and untracked change in the repository — so anything
+    a user, editor, or parallel agent touched while it ran gets swept into their
+    commit. Compare the worktree against the set of paths this migration was
+    supposed to change, stage exactly those, and if anything unexpected appeared,
+    leave it unstaged and say so in the report. Step 4 guards the window before the
+    first write; this guards the window after the last one.
 
 ### The rollup may legitimately contain cycles
 
@@ -304,8 +341,13 @@ migration. It is still a rename, so do all of it:
 1. `git mv docs/tasks/<old-epic>/<task>.md docs/tasks/<new-epic>/<task>.md`.
 2. Rewrite the id in the dependency list (its own entry *and* every entry that
    names it), the Mermaid diagram, and the task list.
-3. Fix the relative links in that task's `Dependencies` section and in every task
-   file that links to it — the number of `../` hops changes.
+3. Fix the relative links **everywhere in the moved file, not just its
+   `Dependencies` section**, and in every task file that links to it — the number
+   of `../` hops changes in both directions. A link from the moved file's Design or
+   How-to-Verify prose to a task that used to be a same-epic neighbour
+   (`history.md`) is now cross-epic (`../app/history.md`), and graph validation
+   won't catch it because it never looked outside `Dependencies`. Scan the moved
+   file for `](` and check every hit.
 4. Move its `##` section from `progress/<old-epic>.md` to `progress/<new-epic>.md`:
    the log entries move verbatim, and the heading changes only if the stem did.
    Update both files' `Epic summary` if the move changes what another epic needs

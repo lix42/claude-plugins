@@ -33,8 +33,8 @@ There is no reverse operation.
 Before anything else, **check the project is in coherent flat mode and the git
 working tree is clean** — stop and say so if either fails, and treat a mixed
 flat/epic layout as an interrupted migration to recover, not a plan to migrate. If
-the plan is under the threshold in `epics.md` on both counts — task count *and*
-subsystem spread — say it doesn't need epics and leave it alone.
+the plan is under **every** trigger in `epics.md` — task count, subsystem spread,
+*and* progress-log size — say it doesn't need epics and leave it alone.
 
 **Group by structure** — subsystems, modules, layers — derived from the design's
 architecture and the dependency clusters, corroborated by which files each task
@@ -61,5 +61,6 @@ the epic files plus `_unassigned.md`, **excluding the newly generated `Epic
 summary` sections** — a raw count can never match and is not the check. Also
 confirm every dependency id resolves to a real file, the **task** graph has no
 cycles or dangling deps (rollup cycles are legitimate — don't flag them), and no
-phase headings or `docs/progress.md` remain. **Stage everything with `git add -A`
-and stop without committing** so the user reviews one diff.
+phase headings or `docs/progress.md` remain. **Stage the migration's own paths and
+stop without committing** so the user reviews one diff — not `git add -A`, which
+would sweep in anything a user or parallel agent edited while the migration ran.

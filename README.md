@@ -171,9 +171,10 @@ parallel work merges cleanly and each task builds on what the last one learned.
 
 #### Epics, for plans that outgrow a flat list
 
-Past roughly a dozen tasks, a flat list and a single execution log stop being
-readable — every agent starting any task pays to read the whole project's history.
-At that point the plan shards by **epic**:
+Past roughly a dozen tasks — or several separable subsystems, or once the log
+outgrows a single comfortable read — a flat list stops working, and every agent
+starting any task pays to read the whole project's history. At that point the plan
+shards by **epic**:
 
 ```
 docs/
