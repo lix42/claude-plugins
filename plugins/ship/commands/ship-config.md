@@ -7,7 +7,7 @@ args: none
 
 # /ship-config — Re-check and update the ship config
 
-The ship workflow caches its Claude Code environment as schema version 3 in
+The ship workflow caches its Claude Code environment as schema version 4 in
 `.claude/ship.local.json` so it doesn't re-detect stable facts every run. Run this
 command to refresh that cache after your environment changes — a remote was
 added, the project's scripts changed, or you installed/removed a helper plugin.
@@ -19,7 +19,7 @@ The cache location, schema, and detection procedure are defined in
 Do this:
 
 1. **Read the existing config** at `.claude/ship.local.json`, if present. Keep its
-   values in hand for comparison only when it is valid schema version 3 for the
+   values in hand for comparison only when it is valid schema version 4 for the
    `claude` host. Missing, invalid, older-version, and unknown-version caches
    require full re-detection rather than migration or a field-by-field diff.
 
@@ -34,7 +34,7 @@ Do this:
    Ship config changes:
    - environment.hasGitHubRemote: false → true
    - qualityGates.test: npm test → npm run test:run
-   - skills.localReview: (none) → pr-review-toolkit:review-pr
+   - skills.localReview: pr-review-toolkit:review-pr → code-review
    - review.codexCommand: (none) → node ".../codex-companion.mjs" review --wait
    ```
 
