@@ -228,11 +228,11 @@ optional helper skills installed in the current session:
 1. **Quality gates** — discover and run the project's type-check / test / build /
    lint commands and fix any failures (never ships past a red gate).
 2. **Code review** — reviews the local change before anything is committed. In
-   Claude Code it prefers the built-in `/code-review` (a single-pass diff review
-   that scopes itself from git state, no open PR required) and runs a Codex
-   review in parallel when the Codex plugin and CLI are installed; falls back to
-   an installed local-diff review skill, then to a critical self-review, when
-   neither is available. Acts on the findings either way.
+   Claude Code it launches the bundled `ship:diff-reviewer` agent (a single-pass,
+   read-only diff review that scopes itself from git state, no open PR required)
+   and runs a Codex review in parallel when the Codex plugin and CLI are
+   installed. In Codex it uses an installed local-diff review skill, falling back
+   to a critical self-review when there is none. Acts on the findings either way.
 3. **Docs** — updates durable existing project instructions: `CLAUDE.md` in
    Claude Code (via `claude-md-management:revise-claude-md` when installed) or
    the applicable `AGENTS.md` in Codex. It does not create an instruction file

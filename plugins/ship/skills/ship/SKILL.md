@@ -38,7 +38,7 @@ to refresh configuration, do not ship anything:
 3. Re-detect every field using the documented procedure.
 4. Compare fields other than `detectedAt` and report `old → new` values. Treat
    any older or unknown schema version and invalid JSON as a full re-detection.
-5. Write the version-4 result to the current host cache and stop.
+5. Write the version-5 result to the current host cache and stop.
 
 ## Assess the change
 
@@ -46,7 +46,7 @@ Read `config.md` before using cached values.
 
 1. Identify the runtime as Claude Code or Codex and select only its cache:
    `.claude/ship.local.json` or `.codex/ship.local.json` respectively.
-2. If that cache contains valid schema version 4 for the current host, use it.
+2. If that cache contains valid schema version 5 for the current host, use it.
    If it is missing, invalid, an older version, another version, or records
    another host, run complete detection and overwrite only the selected cache.
    Never read the other host's cache.
@@ -74,30 +74,34 @@ workflow, rerun every gate that could be affected.
 This step reviews the working change and runs before any commit or pull request.
 A missing pull request is never a reason to skip a configured reviewer.
 
-Run every configured reviewer, in parallel when more than one applies. Start both
+Run every applicable reviewer, in parallel when more than one applies. Start both
 before collecting either: launch `review.codexCommand` as a background Bash job,
-invoke the local reviewer, then collect both results.
+start the local reviewer, then collect both results.
 
-- **`skills.localReview`.** Invoke that exact skill on the current local change.
-  In Claude Code this is normally the built-in `code-review`, a single-pass diff
-  review that scopes itself from git state and reviews uncommitted work. Tell it
-  what to review: the working tree while the change is uncommitted, or the diff
-  against `environment.defaultBranch` once it is committed. It forks its own
-  background agent, so it overlaps the Codex pass without extra sequencing. Never
-  pass `ultra` — that mode is a billed cloud review reserved for the user — and
-  never substitute the `code-review:code-review` plugin, which reviews an open
-  GitHub pull request and comments on it. Never downgrade a configured reviewer to
-  a self-review because no pull request exists.
+- **Local review.** In Claude Code, launch this plugin's bundled
+  `ship:diff-reviewer` agent with the Task tool. It ships with ship, so it needs
+  no detection and is always available. In Codex, invoke the exact
+  `skills.localReview` skill instead when one is recorded.
+- **Scope.** Tell the reviewer what to review: the working tree while the change
+  is uncommitted, or the diff against `environment.defaultBranch` once it is
+  committed. Never downgrade a reviewer to a self-review because no pull request
+  exists.
+- **Never route local review through `/code-review`.** Claude Code's built-in
+  review command is `disable-model-invocation` — user-invocable only — so ship
+  cannot call it, and `/code-review ultra` is a billed cloud review reserved for
+  the user. `code-review:code-review` is also wrong: that marketplace plugin
+  reviews an open GitHub pull request and comments on it.
 - **`review.codexCommand`.** When set, run it verbatim with Bash for an
   independent Codex review of the same local change. This is the programmatic
-  form of `/codex:review`, which is user-invocable only and therefore cannot be
-  called as a skill. Append `--base <environment.defaultBranch>` when the change
-  is already committed rather than sitting in the working tree. Treat a Codex
-  failure — missing CLI, auth error, non-zero exit — as a skipped reviewer:
-  report it and continue with the rest of the review.
+  form of `/codex:review`, which is likewise user-invocable only. Append
+  `--base <environment.defaultBranch>` when the change is already committed
+  rather than sitting in the working tree. Treat a Codex failure — missing CLI,
+  auth error, non-zero exit — as a skipped reviewer: report it and continue with
+  the rest of the review.
 
 Critically self-review the whole diff for correctness, edge cases, security,
-error handling, and project conventions only when neither reviewer is configured.
+error handling, and project conventions only when no reviewer is available at
+all — in Codex with no review skill installed, and no Codex command.
 
 Investigate every finding from every reviewer, deduplicating overlap. Fix
 warranted issues and state why any finding is declined. Rerun affected quality

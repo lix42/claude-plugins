@@ -17,17 +17,17 @@ skills:
 Read and write only the current host's cache. Never consult, copy, migrate, or
 delete the other host's cache. Create the selected parent directory when needed.
 
-Schema version 4 is the only recognized version. If the selected cache is absent,
-invalid JSON, or has any other `version` (including versions 1 through 3), ignore
+Schema version 5 is the only recognized version. If the selected cache is absent,
+invalid JSON, or has any other `version` (including versions 1 through 4), ignore
 all cached values and run the complete detection procedure. That is also the whole
-migration story: fresh detection followed by a version-4 write, never
+migration story: fresh detection followed by a version-5 write, never
 field-by-field conversion.
 
 ## Schema
 
 ```json
 {
-  "version": 4,
+  "version": 5,
   "detectedAt": "2026-07-22T10:30:00Z",
   "host": "codex",
   "instructions": {
@@ -60,11 +60,13 @@ field-by-field conversion.
 }
 ```
 
-A Claude Code cache with both reviewers configured looks like:
+A Claude Code cache looks like this. `localReview` is `null` because Claude Code
+always uses the bundled `ship:diff-reviewer` agent, and the Codex command adds a
+second, independent reviewer alongside it:
 
 ```json
   "skills": {
-    "localReview": "code-review",
+    "localReview": null,
     "documentation": "claude-md-management:revise-claude-md"
   },
   "review": {
@@ -74,7 +76,7 @@ A Claude Code cache with both reviewers configured looks like:
 
 Field rules:
 
-- `version`: always `4`.
+- `version`: always `5`.
 - `detectedAt`: ISO-8601 UTC timestamp for the completed detection.
 - `host`: exactly `claude` or `codex`; it must match the selected cache path.
 - `instructions.file`: repository-relative path to the applicable existing
@@ -87,8 +89,11 @@ Field rules:
 - `tasks.tasksFile`: `docs/TASKS.md` when it exists, otherwise `null`.
 - `skills`: exact installed skill names selected for each role, otherwise `null`.
   Skill dependencies are optional; a null value always has a built-in fallback.
+- `skills.localReview`: always `null` in Claude Code — local review is the
+  plugin's own `ship:diff-reviewer` agent, which needs no detection. In Codex it
+  holds an installed local-diff review skill, or `null`.
 - `review.codexCommand`: the exact shell command that runs a Codex review of the
-  local change, or `null`. It runs alongside `skills.localReview`, never instead
+  local change, or `null`. It runs alongside the local reviewer, never instead
   of it.
 
 ## Detection procedure
@@ -122,52 +127,49 @@ finishes. Do not narrate every probe.
    that list; do not infer availability from plugin files, commands, caches, or
    documentation.
 
-   Claude Code's built-in `code-review` is the one exception. It is invocable by
-   name even though it never appears in the available-skills list, so treat it as
-   installed in Claude Code without looking for it there. If invoking it fails at
-   run time, ship falls back per the fallback contract; that is a run-time route
-   fix, not a detection error.
-
    Select each role independently:
 
    | Role | Claude Code preference | Codex preference |
    |---|---|---|
-   | `localReview` | `code-review` (built-in), then any installed skill whose description reviews the current/local diff or PR | Any installed skill whose description reviews the current/local diff or PR |
+   | `localReview` | `null` — use the bundled `ship:diff-reviewer` agent | Any installed skill whose description reviews the current/local diff or PR |
    | `documentation` | `claude-md-management:revise-claude-md`, then any installed skill whose description updates `CLAUDE.md` | `null` (use the built-in `AGENTS.md` review) |
    | `taskCompletion` | `tasks:tasks-done` | `tasks:task-tracking` |
    | `publishing` | `commit-commands:commit-push-pr` | `github:yeet` |
    | `ciRepair` | `null` | `github:gh-fix-ci` |
    | `reviewFeedback` | `null` | `github:gh-address-comments` |
 
-   `code-review` is Claude Code's built-in reviewer and the right default: a
-   single-pass diff review that scopes itself from git state, so it covers
-   uncommitted work and a committed branch alike, at a fraction of the cost of a
-   multi-agent review fan-out. Record the bare name `code-review`.
+   Local review needs no detection in Claude Code. This plugin bundles its own
+   reviewer, `ship:diff-reviewer` — a single-pass, read-only diff review that
+   scopes itself from git state, so it covers uncommitted work and a committed
+   branch alike, at a fraction of the cost of a multi-agent review fan-out. It is
+   installed with ship itself, so it cannot go missing. Record `null` and let the
+   workflow launch the agent with the Task tool.
 
-   Two things it is not. Never record `code-review:code-review` — that is a
-   separate marketplace plugin that reviews an *open GitHub pull request* and
-   posts a comment on it, which is the wrong scope and an outward action ship
-   never takes during local review. And never record an `ultra` argument:
-   `/code-review ultra` is a billed multi-agent cloud review that only the user
-   may trigger.
+   Do not record Claude Code's built-in `code-review` — it is
+   `disable-model-invocation`, user-invocable only, so ship cannot call it, and
+   recording it is exactly the stale-cache bug that schema 5 exists to clear.
+   `/code-review ultra` is a billed cloud review only the user may trigger.
+   `code-review:code-review` is a different thing again: a marketplace plugin
+   that reviews an *open GitHub pull request* and posts a comment on it, which is
+   the wrong scope and an outward action ship never takes during local review.
 
-   Reach the third-party tier only in Codex, or in a Claude Code without the
-   built-in. There, accept a skill only when its description clearly matches local
-   code/diff review. Do not select one merely because “review” appears in its
-   publisher or name, and do not repurpose CI-repair or review-comment skills as
-   local review. If several role-matching skills remain, prefer the one explicitly
-   scoped to the current diff, then a local PR, and otherwise the first listed
-   exact name. Use `null` when no match exists.
+   In Codex there is no bundled agent, so detect a review skill there. Accept one
+   only when its description clearly matches local code/diff review. Do not select
+   one merely because “review” appears in its publisher or name, and do not
+   repurpose CI-repair or review-comment skills as local review. If several
+   role-matching skills remain, prefer the one explicitly scoped to the current
+   diff, then a local PR, and otherwise the first listed exact name. Use `null`
+   when no match exists.
 
-   `pr-review-toolkit:review-pr` qualifies at that tier. It reviews the local
-   working tree — it derives its scope from `git status` and `git diff` and only
-   checks for an existing PR opportunistically — so the “pr” in its name is never
-   a reason to reject it or to skip it later because no pull request exists.
+   `pr-review-toolkit:review-pr` qualifies there. It reviews the local working
+   tree — it derives its scope from `git status` and `git diff` and only checks
+   for an existing PR opportunistically — so the “pr” in its name is never a
+   reason to reject it or to skip it later because no pull request exists.
 
 6. **Codex review command.** In Codex, set `review.codexCommand` to `null`; a
    second Codex review adds nothing there. In Claude Code, set it when the Codex
    plugin's review runtime is usable, so that `/codex:review` coverage runs in
-   parallel with `localReview`. The slash command itself declares
+   parallel with `ship:diff-reviewer`. The slash command itself declares
    `disable-model-invocation`, so ship must call the underlying runtime instead:
 
    - Locate the installed plugin script, preferring the highest version
@@ -179,7 +181,7 @@ finishes. Do not narrate every probe.
      detection; it writes Codex plugin configuration.
 
 7. **Write once.** Write valid, formatted JSON to the selected cache with version
-   4 and a fresh timestamp. On an explicit refresh, compare all fields except
+   5 and a fresh timestamp. On an explicit refresh, compare all fields except
    `detectedAt` with the prior selected-host cache and report only changed values.
    An old or invalid schema is reported as a full re-detection, not as a partial
    diff.
@@ -188,9 +190,10 @@ finishes. Do not narrate every probe.
 
 Missing helpers never block shipping:
 
-- `localReview`: if the recorded reviewer cannot be invoked — an older Claude Code
-  without the built-in `code-review`, or a helper that has since been removed —
-  use an installed skill whose description matches local diff review, such as
+- `localReview`: in Claude Code the bundled `ship:diff-reviewer` agent is the
+  route, and it ships with the plugin, so there is nothing to fall back from. If
+  it cannot be launched at all, or in Codex when no review skill is recorded, use
+  an installed skill whose description matches local diff review, such as
   `pr-review-toolkit:review-pr`. With none available, critically self-review the
   current diff for correctness, edge cases, security, and project conventions.
   Self-review is the fallback for a missing reviewer, never a substitute for an
