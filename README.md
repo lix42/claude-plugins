@@ -233,22 +233,18 @@ optional helper skills installed in the current session:
    and runs a Codex review in parallel when the Codex plugin and CLI are
    installed. In Codex it uses an installed local-diff review skill, falling back
    to a critical self-review when there is none. Acts on the findings either way.
-3. **Docs** — updates durable existing project instructions: `CLAUDE.md` in
-   Claude Code (via `claude-md-management:revise-claude-md` when installed) or
-   the applicable `AGENTS.md` in Codex. It does not create an instruction file
-   just to record one-off details.
-4. **Task** — if `docs/TASKS.md` exists and the session worked a task, marks it
+3. **Task** — if `docs/TASKS.md` exists and the session worked a task, marks it
    `[x]` using the host's task helper when available, with a direct-file fallback.
-5. **PR** — if there's a GitHub remote: branch if needed, then commit + push +
+4. **PR** — if there's a GitHub remote: branch if needed, then commit + push +
    open a PR using the host's publishing helper when available, else `git`/`gh`.
-6. **Drive to green** — polls PR checks, fixes failures and pushes, rebases onto
+5. **Drive to green** — polls PR checks, fixes failures and pushes, rebases onto
    the default branch when the PR falls behind, and reads/answers review comments.
    Stops once green — the final merge is left to you.
-7. **No remote** — if there's no GitHub remote, rebases onto `main` and
+6. **No remote** — if there's no GitHub remote, rebases onto `main` and
    fast-forward merges to keep history linear (safe for parallel worktrees).
 
 On its first run in a repo, `ship` detects the stable facts it depends on — host,
-project instructions, GitHub remote, default branch, quality-gate commands,
+GitHub remote, default branch, quality-gate commands,
 task-list presence, the exact optional helper-skill names installed, and the
 Codex review command when available — and caches them in `.claude/ship.local.json` for Claude Code or
 `.codex/ship.local.json` for Codex. The host caches are independent. Run

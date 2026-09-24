@@ -4,16 +4,16 @@ description: >-
   Take a finished coding change from "done writing code" to "ready to merge."
   Use when the user invokes $ship or /ship, asks to ship or wrap up a finished
   change, wants to open a pull request and drive it to green, or asks to refresh
-  ship configuration. Run project quality gates, review the diff, update durable
-  host-specific project instructions and tracked-task state, then publish and
-  stabilize a GitHub PR or integrate linearly when no GitHub remote exists.
+  ship configuration. Run project quality gates, review the diff, update
+  tracked-task state, then publish and stabilize a GitHub PR or integrate
+  linearly when no GitHub remote exists.
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, Task, Skill
 ---
 
 # Ship
 
-Carry a finished change through verification, review, documentation, task
-completion, and publication. Invoking this workflow authorizes its normal outward
+Carry a finished change through verification, review, task completion, and
+publication. Invoking this workflow authorizes its normal outward
 actions, including pushing a branch and opening or updating a pull request.
 
 Obey two hard rules:
@@ -38,7 +38,7 @@ to refresh configuration, do not ship anything:
 3. Re-detect every field using the documented procedure.
 4. Compare fields other than `detectedAt` and report `old → new` values. Treat
    any older or unknown schema version and invalid JSON as a full re-detection.
-5. Write the version-5 result to the current host cache and stop.
+5. Write the version-6 result to the current host cache and stop.
 
 ## Assess the change
 
@@ -46,7 +46,7 @@ Read `config.md` before using cached values.
 
 1. Identify the runtime as Claude Code or Codex and select only its cache:
    `.claude/ship.local.json` or `.codex/ship.local.json` respectively.
-2. If that cache contains valid schema version 5 for the current host, use it.
+2. If that cache contains valid schema version 6 for the current host, use it.
    If it is missing, invalid, an older version, another version, or records
    another host, run complete detection and overwrite only the selected cache.
    Never read the other host's cache.
@@ -107,23 +107,7 @@ Investigate every finding from every reviewer, deduplicating overlap. Fix
 warranted issues and state why any finding is declined. Rerun affected quality
 gates after changes.
 
-## 3. Update durable project instructions
-
-Use `instructions.file` as the only candidate:
-
-- In Claude Code, if `skills.documentation` is set, invoke that exact helper for
-  the existing applicable `CLAUDE.md`; otherwise review it directly.
-  `claude-md-management:revise-claude-md` is the preferred helper — when it is
-  configured, do not hand-edit `CLAUDE.md` instead of invoking it.
-- In Codex, review the existing applicable `AGENTS.md` directly. There is no
-  required documentation helper.
-
-Add only durable, non-obvious commands, conventions, gotchas, or structural facts
-learned from the change. Do not create an instruction file, expand one with
-one-off implementation details, or update the other host's instruction format.
-It is correct to make no documentation edit.
-
-## 4. Complete a tracked task
+## 3. Complete a tracked task
 
 When `tasks.tasksFile` is set and the current change clearly implements one task:
 
@@ -154,7 +138,7 @@ Identify the task from the task goal, branch, diff, and session context. Ask the
 user if multiple tasks remain plausible. Skip when there is no task file or the
 change is not tracked.
 
-## 5. Publish when a GitHub remote exists
+## 4. Publish when a GitHub remote exists
 
 Follow this path only when `environment.hasGitHubRemote` is true.
 
@@ -171,7 +155,7 @@ Follow this path only when `environment.hasGitHubRemote` is true.
 Continue immediately to stabilization. Do not stop merely because a publishing
 helper returned a pull-request URL.
 
-## 6. Drive the pull request to green
+## 5. Drive the pull request to green
 
 Loop until checks pass, the branch is current, and actionable review feedback is
 handled:
@@ -195,7 +179,7 @@ If the PR is a draft, mark it ready for review only after all checks pass and al
 known actionable feedback is addressed (`gh pr ready` is the direct fallback).
 Never merge it.
 
-## 7. Integrate linearly when no GitHub remote exists
+## 6. Integrate linearly when no GitHub remote exists
 
 Follow this path only when `environment.hasGitHubRemote` is false:
 
@@ -212,8 +196,8 @@ Report the resulting default-branch commit.
 
 ## Finish
 
-Summarize the gates that passed, review outcome, project-instruction and task
-updates, and publication result. For GitHub, include the PR URL, green status,
+Summarize the gates that passed, review outcome, task updates, and publication
+result. For GitHub, include the PR URL, green status,
 and whether it was marked ready for review; remind the user that the final merge
 remains theirs. For no-remote integration, include the resulting commit. Call out
 anything skipped and why.

@@ -20,7 +20,7 @@
     },
     {
       "name": "ship",
-      "description": "Finish a coding task and ship it: quality gates, code review, docs, mark task done, then open a PR or merge back linearly",
+      "description": "Finish a coding task and ship it: quality gates, code review, mark task done, then open a PR or merge back linearly",
       "source": "./plugins/ship",
       "category": "productivity"
     }

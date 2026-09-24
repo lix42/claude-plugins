@@ -1,8 +1,7 @@
 # Ship config
 
 The ship workflow caches project facts that are stable across runs: host,
-applicable project instructions, GitHub remote and default branch, quality-gate
-commands, task-list presence, the exact names of installed helper skills, and
+GitHub remote and default branch, quality-gate commands, task-list presence, the exact names of installed helper skills, and
 the optional Codex review command. Both first-run detection and an explicit
 config refresh follow this file.
 
@@ -17,22 +16,19 @@ skills:
 Read and write only the current host's cache. Never consult, copy, migrate, or
 delete the other host's cache. Create the selected parent directory when needed.
 
-Schema version 5 is the only recognized version. If the selected cache is absent,
-invalid JSON, or has any other `version` (including versions 1 through 4), ignore
+Schema version 6 is the only recognized version. If the selected cache is absent,
+invalid JSON, or has any other `version` (including versions 1 through 5), ignore
 all cached values and run the complete detection procedure. That is also the whole
-migration story: fresh detection followed by a version-5 write, never
+migration story: fresh detection followed by a version-6 write, never
 field-by-field conversion.
 
 ## Schema
 
 ```json
 {
-  "version": 5,
+  "version": 6,
   "detectedAt": "2026-07-22T10:30:00Z",
   "host": "codex",
-  "instructions": {
-    "file": "AGENTS.md"
-  },
   "environment": {
     "hasGitHubRemote": true,
     "defaultBranch": "main"
@@ -48,7 +44,6 @@ field-by-field conversion.
   },
   "skills": {
     "localReview": "acme:review-current-diff",
-    "documentation": null,
     "taskCompletion": "tasks:task-tracking",
     "publishing": "github:yeet",
     "ciRepair": "github:gh-fix-ci",
@@ -67,7 +62,7 @@ second, independent reviewer alongside it:
 ```json
   "skills": {
     "localReview": null,
-    "documentation": "claude-md-management:revise-claude-md"
+    "taskCompletion": "tasks:tasks-done"
   },
   "review": {
     "codexCommand": "node \"/Users/me/.claude/plugins/cache/openai-codex/codex/1.0.6/scripts/codex-companion.mjs\" review --wait"
@@ -76,11 +71,9 @@ second, independent reviewer alongside it:
 
 Field rules:
 
-- `version`: always `5`.
+- `version`: always `6`.
 - `detectedAt`: ISO-8601 UTC timestamp for the completed detection.
 - `host`: exactly `claude` or `codex`; it must match the selected cache path.
-- `instructions.file`: repository-relative path to the applicable existing
-  instruction file, or `null`. Never create an instruction file during detection.
 - `environment.hasGitHubRemote`: true only when a configured remote points to
   GitHub.
 - `environment.defaultBranch`: detected default branch name.
@@ -101,12 +94,7 @@ Field rules:
 Gather every field fresh and write the selected host cache only after detection
 finishes. Do not narrate every probe.
 
-1. **Host and project instructions.** Record the current runtime host. For Claude
-   Code, select the applicable existing `CLAUDE.md`. For Codex, select the nearest
-   applicable existing `AGENTS.md` on the path from repository root to the current
-   working directory. Record its repository-relative path, or `null`. Do not use
-   `CLAUDE.md` as Codex instructions, do not use `AGENTS.md` as Claude Code
-   instructions, and do not create either file.
+1. **Host.** Record the current runtime host.
 
 2. **GitHub remote and default branch.** Check `git remote -v` and `gh repo view`.
    Set `hasGitHubRemote` when a remote URL points to GitHub. For `defaultBranch`,
@@ -115,7 +103,8 @@ finishes. Do not narrate every probe.
    Use the current branch only as a last resort.
 
 3. **Quality gates.** Read project configuration such as `package.json`, a
-   `Makefile`, and the selected host instruction file. Record exact runnable
+   `Makefile`, and the host's applicable instruction file (`CLAUDE.md` in Claude
+   Code, the nearest `AGENTS.md` in Codex). Record exact runnable
    commands, preferring single-run or CI variants (`test:run` over a watch-mode
    `test`). Account for commands that subsume other gates, but record a gate's own
    command when one exists. Use `null` when no gate exists.
@@ -132,7 +121,6 @@ finishes. Do not narrate every probe.
    | Role | Claude Code preference | Codex preference |
    |---|---|---|
    | `localReview` | `null` — use the bundled `ship:diff-reviewer` agent | Any installed skill whose description reviews the current/local diff or PR |
-   | `documentation` | `claude-md-management:revise-claude-md`, then any installed skill whose description updates `CLAUDE.md` | `null` (use the built-in `AGENTS.md` review) |
    | `taskCompletion` | `tasks:tasks-done` | `tasks:task-tracking` |
    | `publishing` | `commit-commands:commit-push-pr` | `github:yeet` |
    | `ciRepair` | `null` | `github:gh-fix-ci` |
@@ -147,7 +135,7 @@ finishes. Do not narrate every probe.
 
    Do not record Claude Code's built-in `code-review` — it is
    `disable-model-invocation`, user-invocable only, so ship cannot call it, and
-   recording it is exactly the stale-cache bug that schema 5 exists to clear.
+   recording it is exactly the stale-cache bug that the schema 5 bump cleared.
    `/code-review ultra` is a billed cloud review only the user may trigger.
    `code-review:code-review` is a different thing again: a marketplace plugin
    that reviews an *open GitHub pull request* and posts a comment on it, which is
@@ -181,7 +169,7 @@ finishes. Do not narrate every probe.
      detection; it writes Codex plugin configuration.
 
 7. **Write once.** Write valid, formatted JSON to the selected cache with version
-   5 and a fresh timestamp. On an explicit refresh, compare all fields except
+   6 and a fresh timestamp. On an explicit refresh, compare all fields except
    `detectedAt` with the prior selected-host cache and report only changed values.
    An old or invalid schema is reported as a full re-detection, not as a partial
    diff.
@@ -199,9 +187,6 @@ Missing helpers never block shipping:
   Self-review is the fallback for a missing reviewer, never a substitute for an
   available one.
 - `review.codexCommand`: skip the Codex pass; the remaining reviewer is enough.
-- `documentation`: review and surgically update the selected existing instruction
-  file only for durable, non-obvious guidance; if none exists or nothing durable
-  changed, do not write one.
 - `taskCompletion`: update `docs/TASKS.md` and the matching progress section
   directly — `docs/progress.md`, or `docs/progress/<epic>.md` for epic-grouped
   plans, refreshing that file's `Epic summary` when the change affects other epics.
