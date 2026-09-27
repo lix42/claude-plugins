@@ -207,6 +207,14 @@ already epic mode, move tasks between epics one at a time with `/tasks-update`.)
 | `/tasks-update [change]` | Add/remove/split/move/change tasks and keep the dependency graph consistent |
 | `/tasks-done [task]` | Mark a task complete and show what it just unblocked |
 | `/tasks-group [hint]` | Promote an oversized flat task list to structural epics and split the progress log per epic |
+| `/tasks:start-task <task>` | Create a branch + sibling worktree for the task from the remote default branch, switch into it, then explain the task and agree on a plan |
+
+`/tasks:start-task` checks for an existing branch (local or remote), folder, or
+worktree before creating anything — including a worktree whose folder was deleted
+— and asks whether to reuse it, recreate it, or stop. It never deletes or resets
+anything without your answer. Task `app/state` in epic mode gets branch
+`app/state` and folder `../app-state`. It runs only when invoked (in Codex,
+`$start-task`), since it creates branches and worktrees.
 
 The bundled `task-tracking` skill also triggers automatically when you ask about
 the plan, what to work on next, or say a piece of work is done — so you don't have

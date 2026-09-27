@@ -1,6 +1,6 @@
 {
   "name": "tasks",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Plan and track development work with Markdown task files, an explicit dependency graph, and optional epics for large plans.",
   "author": {
     "name": "lix42",

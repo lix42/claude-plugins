@@ -1,0 +1,6 @@
+interface:
+  display_name: "Start Task"
+  short_description: "Open a task in its own worktree and plan it"
+  default_prompt: "Use $start-task to set up a worktree for this task and plan it."
+policy:
+  allow_implicit_invocation: false
