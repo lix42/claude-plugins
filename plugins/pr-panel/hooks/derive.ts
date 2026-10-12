@@ -37,17 +37,54 @@ export const defaultMethod = (allowed: readonly MergeMethod[]): MergeMethod | nu
 export const effectiveMethod = (snapshot: PrSnapshot, picked: MergeMethod | undefined): MergeMethod | null =>
   picked && snapshot.repo.methods.includes(picked) ? picked : defaultMethod(snapshot.repo.methods)
 
-export type ActionId = 'auto-enable' | 'auto-disable' | 'merge' | 'ready' | 'rerun'
+export type ActionId = 'auto-enable' | 'auto-disable' | 'merge' | 'bypass' | 'ready' | 'rerun'
 
+/** Actions that ask for a second press before they run. */
+export const CONFIRMED_ACTIONS: readonly ActionId[] = ['merge', 'bypass']
+
+/** Merge states GitHub would merge as they stand (UNSTABLE: only non-required checks failing). */
+const MERGEABLE_STATES = new Set(['CLEAN', 'UNSTABLE', 'HAS_HOOKS'])
+
+/** Only actions GitHub would accept now: a blocked merge is not offered, a bypass is where allowed. */
 export const availableActions = (snapshot: PrSnapshot, method: MergeMethod | null): ActionId[] => {
   if (snapshot.state !== 'OPEN') return []
   const actions: ActionId[] = []
+  const isConflicting = snapshot.mergeable === 'CONFLICTING'
   if (snapshot.isDraft) actions.push('ready')
   if (snapshot.autoMerge) actions.push('auto-disable')
-  else if (method && snapshot.repo.isAutoMergeAllowed && !snapshot.isDraft) actions.push('auto-enable')
-  if (method && !snapshot.isDraft && snapshot.mergeable !== 'CONFLICTING') actions.push('merge')
+  else if (method && snapshot.viewer.canEnableAutoMerge && !snapshot.isDraft) actions.push('auto-enable')
+  if (method && !snapshot.isDraft && !isConflicting) {
+    if (MERGEABLE_STATES.has(snapshot.mergeStateStatus)) actions.push('merge')
+    else if (snapshot.mergeStateStatus === 'BLOCKED' && snapshot.viewer.canMergeAsAdmin) actions.push('bypass')
+  }
   if (failedRunIds(snapshot.checks).length > 0) actions.push('rerun')
   return actions
+}
+
+/** Why a merge cannot go ahead as things stand; empty when it can. */
+export const mergeBlockers = (snapshot: PrSnapshot): string[] => {
+  if (snapshot.state !== 'OPEN') return []
+  if (snapshot.isDraft) return ['the PR is a draft']
+  if (snapshot.mergeable === 'CONFLICTING') return [`conflicts with ${snapshot.baseRefName}`]
+  switch (snapshot.mergeStateStatus) {
+    case 'BEHIND':
+      return [`the branch is behind ${snapshot.baseRefName}`]
+    case 'UNKNOWN':
+      return ['GitHub is still computing mergeability']
+    case 'BLOCKED': {
+      const c = countChecks(snapshot.checks)
+      const reasons = [
+        snapshot.threads.length ? `${snapshot.threads.length} unresolved thread${snapshot.threads.length === 1 ? '' : 's'}` : '',
+        snapshot.reviewDecision === 'REVIEW_REQUIRED' ? 'a review is required' : '',
+        snapshot.reviewDecision === 'CHANGES_REQUESTED' ? 'changes were requested' : '',
+        c.fail ? `${c.fail} failing check${c.fail === 1 ? '' : 's'}` : '',
+        c.pending ? `${c.pending} pending check${c.pending === 1 ? '' : 's'}` : '',
+      ].filter(Boolean)
+      return reasons.length ? reasons : ['branch protection rules']
+    }
+    default:
+      return []
+  }
 }
 
 export const failedRunIds = (checks: readonly Check[]): string[] => [

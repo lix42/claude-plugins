@@ -21,6 +21,7 @@ const THREADS_QUERY = `query($owner: String!, $repo: String!, $number: Int!) {
   repository(owner: $owner, name: $repo) {
     squashMergeAllowed mergeCommitAllowed rebaseMergeAllowed autoMergeAllowed
     pullRequest(number: $number) {
+      viewerCanMergeAsAdmin viewerCanEnableAutoMerge
       reviewThreads(first: 100) {
         nodes {
           id isResolved isOutdated path line
@@ -61,8 +62,11 @@ export const probePaths = (ref: PrRef, headSha: string | null): string[] => [
     : []),
 ]
 
-export const mergeArgv = (ref: PrRef, method: MergeMethod, isAuto: boolean) => [
-  'gh', 'pr', 'merge', ref.url, `--${method}`, ...(isAuto ? ['--auto'] : []),
+/** `now` merges, `auto` queues auto-merge, `admin` bypasses the branch rules. */
+export type MergeMode = 'now' | 'auto' | 'admin'
+
+export const mergeArgv = (ref: PrRef, method: MergeMethod, mode: MergeMode) => [
+  'gh', 'pr', 'merge', ref.url, `--${method}`, ...(mode === 'now' ? [] : [`--${mode}`]),
 ]
 
 export const disableAutoArgv = (ref: PrRef) => ['gh', 'pr', 'merge', ref.url, '--disable-auto']

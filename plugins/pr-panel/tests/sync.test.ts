@@ -26,7 +26,7 @@ const fakeIo = (answer: (argv: readonly string[]) => string) => {
     setMethod: async () => null,
     toast: text => void toasts.push(text),
     notify: async () => null,
-    ask: async () => 'Cancel',
+    setNotice: async () => null,
     fill: async () => true,
     openPane: async () => ({ isPlaced: true }),
     closePane: async () => void (closes += 1),

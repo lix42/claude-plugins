@@ -1,8 +1,8 @@
 import type { EngineInterface } from 'claude-code'
 
-import type { Check, MergeMethod, PrSnapshot, Thread, TrackedPr } from '../types'
+import type { Check, MergeMethod, Notice, PrSnapshot, Thread, TrackedPr } from '../types'
 import { actionLabel } from './actions'
-import { availableActions, countChecks, methodLabel, summaryLine, type ActionId } from './derive'
+import { availableActions, countChecks, mergeBlockers, methodLabel, summaryLine, type ActionId } from './derive'
 
 type Ui = ReturnType<EngineInterface['ui']['resolve']>
 
@@ -12,9 +12,21 @@ export type PaneHandlers = {
   untrack: () => void
   pickMethod: (method: MergeMethod) => void
   act: (action: ActionId) => void
+  cancel: () => void
+  dismissNotice: () => void
   fixCheck: (check: Check) => void
   fixThread: (thread: Thread) => void
   toggleThread: (id: string) => void
+}
+
+/** What the pane draws besides the PR itself. */
+export type PaneState = {
+  method: MergeMethod | null
+  busy: string | null
+  expanded: readonly string[]
+  /** The action of the shown PR awaiting its second press. */
+  confirming: ActionId | null
+  notice: Notice | null
 }
 
 /** Single keys that press a button while the pane holds the keyboard (ctrl+x tab). */
@@ -22,6 +34,7 @@ const ACTION_HOTKEY: Record<ActionId, string> = {
   'auto-enable': 'a',
   'auto-disable': 'a',
   merge: 'm',
+  bypass: 'b',
   ready: 'd',
   rerun: 'x',
 }
@@ -184,13 +197,17 @@ const renderComments = (ui: Ui, s: PrSnapshot) => {
   )
 }
 
-const renderActions = (ui: Ui, pr: TrackedPr, s: PrSnapshot, method: MergeMethod | null, handlers: PaneHandlers) => {
+const renderActions = (ui: Ui, s: PrSnapshot, state: PaneState, handlers: PaneHandlers) => {
   const { Box, Text, Button } = ui
+  const { method, confirming } = state
   const actions = availableActions(s, method)
-  if (actions.length === 0) return null
-  const showMethod = s.repo.methods.length > 1 && (actions.includes('auto-enable') || actions.includes('merge'))
+  const blockers = mergeBlockers(s)
+  if (actions.length === 0 && blockers.length === 0) return null
+  const showMethod =
+    s.repo.methods.length > 1 && actions.some(a => a === 'auto-enable' || a === 'merge' || a === 'bypass')
   return (
     <Box flexDirection="column">
+      {blockers.length > 0 && <Text color="warning">Merge blocked: {blockers.join(', ')}</Text>}
       {showMethod && (
         <Box>
           <Text dimColor>Merge method </Text>
@@ -204,18 +221,25 @@ const renderActions = (ui: Ui, pr: TrackedPr, s: PrSnapshot, method: MergeMethod
           ))}
         </Box>
       )}
-      <Box>
-        {actions.map(action => (
-          <Button
-            key={`action-${action}`}
-            label={actionLabel(action, method)}
-            variant={action === 'auto-enable' ? 'primary' : undefined}
-            hotkey={ACTION_HOTKEY[action]}
-            onPress={() => handlers.act(action)}
-          />
-        ))}
-      </Box>
-      {s.mergeable === 'CONFLICTING' && <Text color="error">Has merge conflicts with {s.baseRefName}</Text>}
+      {confirming ? (
+        <Box>
+          <Text color={confirming === 'bypass' ? 'error' : 'warning'}>{actionLabel(confirming, method)} now? </Text>
+          <Button key="confirm" label="Confirm" variant="primary" hotkey="y" onPress={() => handlers.act(confirming)} />
+          <Button key="cancel" label="Cancel" hotkey="n" onPress={handlers.cancel} />
+        </Box>
+      ) : (
+        <Box>
+          {actions.map(action => (
+            <Button
+              key={`action-${action}`}
+              label={actionLabel(action, method)}
+              variant={action === 'auto-enable' || action === 'merge' ? 'primary' : undefined}
+              hotkey={ACTION_HOTKEY[action]}
+              onPress={() => handlers.act(action)}
+            />
+          ))}
+        </Box>
+      )}
     </Box>
   )
 }
@@ -224,9 +248,7 @@ export const renderPane = (
   ui: Ui,
   list: readonly TrackedPr[],
   pr: TrackedPr | null,
-  method: MergeMethod | null,
-  busyLabel: string | null,
-  expanded: readonly string[],
+  state: PaneState,
   handlers: PaneHandlers,
 ) => {
   const { Box, Text, Button } = ui
@@ -249,7 +271,13 @@ export const renderPane = (
         <Button key="refresh" label="Refresh" hotkey="r" onPress={handlers.refresh} />
         <Button key="untrack" label="Untrack" hotkey="u" onPress={handlers.untrack} />
       </Box>
-      {busyLabel && <Text color="warning">{busyLabel}…</Text>}
+      {state.busy && <Text color="warning">{state.busy}…</Text>}
+      {state.notice && (
+        <Box>
+          <Text color={state.notice.isError ? 'error' : 'success'}>{state.notice.text} </Text>
+          <Button key="dismiss-notice" label="Dismiss" plain dimColor onPress={handlers.dismissNotice} />
+        </Box>
+      )}
       {pr.error && <Text color="error">{pr.error.split('\n')[0]}</Text>}
       {s === null ? (
         <Text dimColor>Loading #{pr.ref.number}…</Text>
@@ -258,9 +286,9 @@ export const renderPane = (
           {renderHeader(ui, pr, s)}
           {renderChecks(ui, s, handlers)}
           {renderReviews(ui, s)}
-          {renderThreads(ui, s, expanded, handlers)}
+          {renderThreads(ui, s, state.expanded, handlers)}
           {renderComments(ui, s)}
-          {renderActions(ui, pr, s, method, handlers)}
+          {renderActions(ui, s, state, handlers)}
         </Box>
       )}
       <Text dimColor>ctrl+x tab focuses this pane · Tab/arrows move · Enter presses · Esc returns</Text>

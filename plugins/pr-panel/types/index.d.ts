@@ -48,6 +48,15 @@ export type Thread = {
   replies: ThreadReply[]
 }
 
+/** What GitHub says the viewer may do on this PR. */
+export type ViewerRights = {
+  canMergeAsAdmin: boolean
+  canEnableAutoMerge: boolean
+}
+
+/** The outcome of the last action, shown in the pane until the next one. */
+export type Notice = { url: string; text: string; isError: boolean }
+
 export type RepoSettings = {
   methods: MergeMethod[]
   isAutoMergeAllowed: boolean
@@ -69,6 +78,7 @@ export type PrSnapshot = {
   comments: Comment[]
   threads: Thread[]
   repo: RepoSettings
+  viewer: ViewerRights
 }
 
 export type TrackedPr = {
@@ -91,6 +101,9 @@ declare module 'claude-code' {
       busy: string | null
       /** The ids of the threads shown expanded. */
       expanded: string[]
+      /** `<url>#<action>` awaiting its second press. */
+      confirming: string | null
+      notice: Notice | null
     }
   }
 }

@@ -14,8 +14,18 @@ const withBusy = async (io: Io, label: string, work: () => Promise<void>) => {
   }
 }
 
-const report = (io: Io, label: string, result: { isOk: boolean; error: string }) =>
-  io.toast(result.isOk ? `${label}: done` : `${label} failed: ${result.error.split('\n')[0]}`)
+/** The first meaningful line of gh's stderr, without its leading mark. */
+export const errorLine = (error: string): string =>
+  error
+    .split('\n')
+    .map(line => line.replace(/^[X!✗]\s+/, '').trim())
+    .find(Boolean) ?? 'unknown error'
+
+const report = async (io: Io, ref: PrRef, label: string, result: { isOk: boolean; error: string }) => {
+  const text = result.isOk ? `${label}: done` : `${label} failed: ${errorLine(result.error)}`
+  io.toast(text)
+  await io.setNotice({ url: ref.url, text, isError: !result.isOk })
+}
 
 export const actionLabel = (action: ActionId, method: MergeMethod | null): string => {
   const how = method ? ` (${methodLabel(method)})` : ''
@@ -26,6 +36,8 @@ export const actionLabel = (action: ActionId, method: MergeMethod | null): strin
       return 'Disable auto-merge'
     case 'merge':
       return method === 'squash' ? 'Squash and merge' : method === 'rebase' ? 'Rebase and merge' : 'Merge'
+    case 'bypass':
+      return `Bypass rules and ${method === 'squash' ? 'squash and merge' : method === 'rebase' ? 'rebase and merge' : 'merge'}`
     case 'ready':
       return 'Ready for review'
     case 'rerun':
@@ -42,27 +54,21 @@ export const runAction = async (
   method: MergeMethod | null,
 ) => {
   const label = `#${ref.number} ${actionLabel(action, method)}`
-
-  if (action === 'merge') {
-    const answer = await io
-      .ask(`${actionLabel(action, method)} PR #${ref.number} now?`, ['Merge', 'Cancel'])
-      .catch(() => 'Cancel')
-    if (answer !== 'Merge') return
-  }
+  await io.setNotice(null)
 
   await withBusy(io, label, async () => {
     if (action === 'rerun') {
       const results = await Promise.all(failedRunIds(snapshot.checks).map(id => runGh(io, rerunArgv(ref, id))))
       const failed = results.find(r => !r.isOk)
-      report(io, label, failed ?? { isOk: true, error: '' })
+      await report(io, ref, label, failed ?? { isOk: true, error: '' })
     } else {
       const argv =
         action === 'auto-disable'
           ? disableAutoArgv(ref)
           : action === 'ready'
             ? readyArgv(ref)
-            : mergeArgv(ref, method ?? 'merge', action === 'auto-enable')
-      report(io, label, await runGh(io, argv, 60_000))
+            : mergeArgv(ref, method ?? 'merge', action === 'auto-enable' ? 'auto' : action === 'bypass' ? 'admin' : 'now')
+      await report(io, ref, label, await runGh(io, argv, 60_000))
     }
     await refresh(io, poller, ref, true)
   })

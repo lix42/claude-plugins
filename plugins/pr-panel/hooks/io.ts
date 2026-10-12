@@ -1,4 +1,4 @@
-import type { MergeMethod, TrackedPr } from '../types'
+import type { MergeMethod, Notice, TrackedPr } from '../types'
 
 /**
  * What the sync and action code needs from the engine. register.tsx builds it from `$`,
@@ -14,7 +14,7 @@ export type Io = {
   setMethod: (url: string, method: MergeMethod) => Promise<unknown>
   toast: (text: string) => void
   notify: (text: string, title: string) => Promise<unknown>
-  ask: (question: string, options: string[]) => Promise<string>
+  setNotice: (notice: Notice | null) => Promise<unknown>
   fill: (text: string) => Promise<boolean>
   /** Resolves whether the pane is drawn now, and why not when it waits. */
   openPane: () => Promise<{ isPlaced: boolean; reason?: string }>

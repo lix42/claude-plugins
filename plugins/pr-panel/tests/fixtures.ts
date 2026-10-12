@@ -47,6 +47,8 @@ export const GRAPH = {
       rebaseMergeAllowed: true,
       autoMergeAllowed: true,
       pullRequest: {
+        viewerCanMergeAsAdmin: true,
+        viewerCanEnableAutoMerge: true,
         reviewThreads: {
           nodes: [
             {
@@ -86,5 +88,6 @@ export const snapshot = (over: Partial<PrSnapshot> = {}): PrSnapshot => ({
   comments: [],
   threads: [],
   repo: { methods: ['squash', 'rebase'], isAutoMergeAllowed: true },
+  viewer: { canMergeAsAdmin: false, canEnableAutoMerge: true },
   ...over,
 })

@@ -2,12 +2,12 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import { fixCheck, fixThread, runAction } from './actions'
-import { effectiveMethod } from './derive'
+import { CONFIRMED_ACTIONS, effectiveMethod, type ActionId } from './derive'
 import type { Io } from './io'
-import type { MergeMethod, TrackedPr } from '../types'
+import type { MergeMethod, Notice, TrackedPr } from '../types'
 import { extractPrRefs, parsePrArg } from './parse'
 import { createPoller, findBranchPr, hurry, refresh, tick, track, untrack, type Poller } from './sync'
-import { renderBand, renderPane } from './view'
+import { renderBand, renderPane, type PaneState } from './view'
 
 const PANE = 'pr-panel'
 const TICK_MS = 5_000
@@ -20,6 +20,8 @@ const selected = atom({ plugin: 'pr-panel', key: 'selected' } as const, null as 
 const methods = atom({ plugin: 'pr-panel', key: 'methods' } as const, {} as Record<string, MergeMethod>)
 const busy = atom({ plugin: 'pr-panel', key: 'busy' } as const, null as string | null)
 const expanded = atom({ plugin: 'pr-panel', key: 'expanded' } as const, [] as string[])
+const confirming = atom({ plugin: 'pr-panel', key: 'confirming' } as const, null as string | null)
+const notice = atom({ plugin: 'pr-panel', key: 'notice' } as const, null as Notice | null)
 
 /** The one place `$` is turned into what the rest of the plugin uses. */
 function makeIo($: EngineInterface): Io {
@@ -33,7 +35,7 @@ function makeIo($: EngineInterface): Io {
     setMethod: (url, method) => update($, methods, all => ({ ...all, [url]: method })),
     toast: text => $.ui.toast(text),
     notify: (text, title) => $.ui.notify(text, { title }),
-    ask: (question, options) => $.ui.ask(question, options),
+    setNotice: value => update($, notice, () => value),
     fill: async text => (await $.prompt.fill({ text })).isFilled,
     openPane: () => $.ui.open({ id: PANE, title: 'PRs' }),
     closePane: () => $.ui.close({ id: PANE }),
@@ -123,12 +125,34 @@ export const register: Register = on => {
     const picked = await read($, methods)
     const method = pr?.snapshot ? effectiveMethod(pr.snapshot, picked[pr.ref.url]) : null
 
-    return renderPane($.ui.resolve(e), list, pr, method, await read($, busy), await read($, expanded), {
+    const pending = await read($, confirming)
+    const lastNotice = await read($, notice)
+    const state: PaneState = {
+      method,
+      busy: await read($, busy),
+      expanded: await read($, expanded),
+      confirming: pr && pending?.startsWith(`${pr.ref.url}#`) ? (pending.slice(pr.ref.url.length + 1) as ActionId) : null,
+      notice: lastNotice?.url === pr?.ref.url ? lastNotice : null,
+    }
+
+    return renderPane($.ui.resolve(e), list, pr, state, {
       select: next => void io.updateSelected(() => next),
       refresh: () => void (pr && refresh(io, poller, pr.ref, true)),
       untrack: () => void (pr && untrack(io, poller, pr.ref.url)),
       pickMethod: value => void (pr && io.setMethod(pr.ref.url, value)),
-      act: action => void (pr?.snapshot && runAction(io, poller, pr.ref, pr.snapshot, action, method)),
+      act: action => {
+        if (!pr?.snapshot) return
+        const key = `${pr.ref.url}#${action}`
+        // A merge asks for a second press, drawn in the pane, before it runs.
+        if (CONFIRMED_ACTIONS.includes(action) && pending !== key) {
+          void update($, confirming, () => key)
+          return
+        }
+        void update($, confirming, () => null)
+        void runAction(io, poller, pr.ref, pr.snapshot, action, method)
+      },
+      cancel: () => void update($, confirming, () => null),
+      dismissNotice: () => void io.setNotice(null),
       fixCheck: check => void (pr && fixCheck(io, pr.ref, check)),
       fixThread: thread => void (pr && fixThread(io, pr.ref, thread)),
       toggleThread: id =>

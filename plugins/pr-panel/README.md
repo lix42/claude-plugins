@@ -33,8 +33,13 @@ stops tracking the PR shown.
 - Actions, shown when they apply:
   - **Merge method**: only the methods the repo allows (squash, then merge
     commit, then rebase by default).
-  - **Enable / Disable auto-merge** (when the repo allows auto-merge).
-  - **Squash and merge** (or the chosen method), after a confirmation.
+  - **Enable / Disable auto-merge** (when GitHub lets you enable it on this PR).
+  - **Squash and merge** (or the chosen method), only while GitHub would merge
+    it. A blocked PR shows a `Merge blocked: …` line with the reasons it can see
+    (unresolved threads, required review, failing or pending checks) instead.
+  - **Bypass rules and merge** (`gh pr merge --admin`), on a blocked PR when
+    GitHub says you can merge as an admin.
+  - Merge and bypass ask for a second press (Confirm / Cancel) in the pane.
   - **Ready for review** on a draft.
   - **Re-run failed** for failed Actions runs.
 
@@ -50,6 +55,8 @@ pane has the keyboard, single keys press buttons:
 | `1`–`9` | Switch PR tab (shown with more than one PR) |
 | `a` | Enable or disable auto-merge |
 | `m` | Merge (asks to confirm) |
+| `b` | Bypass rules and merge (asks to confirm) |
+| `y` / `n` | Confirm / Cancel |
 | `d` | Ready for review |
 | `x` | Re-run failed |
 | `f` | Fix the first failed check |
@@ -77,7 +84,8 @@ GitHub cannot push to a local session, so the mod polls, cheaply:
    merged or closed. A `git push`, `gh pr …` or `gh run rerun` in Bash, or a
    button, polls at once.
 
-Changes raise a toast. Finished checks, new reviews and a merge or close also
+An action that fails says why in the pane (gh's error) until the next action or
+**Dismiss**, and in a toast. Changes raise a toast. Finished checks, new reviews and a merge or close also
 raise a desktop notification.
 
 A merged or closed PR stops polling, shows its final state for two minutes, then

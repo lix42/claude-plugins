@@ -80,7 +80,7 @@ const fullFetch = async (io: Io, ref: PrRef, prev: PrSnapshot | null): Promise<F
   try {
     const parsed = parseSnapshot(JSON.parse(view.stdout), graph.isOk ? JSON.parse(graph.stdout) : null)
     // A failed GraphQL call keeps what we knew of threads and repo settings.
-    return { snapshot: graph.isOk || !prev ? parsed : { ...parsed, threads: prev.threads, repo: prev.repo } }
+    return { snapshot: graph.isOk || !prev ? parsed : { ...parsed, threads: prev.threads, repo: prev.repo, viewer: prev.viewer } }
   } catch (error) {
     return { error: `could not read gh output: ${error instanceof Error ? error.message : String(error)}` }
   }

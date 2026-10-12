@@ -4,6 +4,7 @@ import {
   FAST_POLL_MS,
   IDLE_POLL_MS,
   availableActions,
+  mergeBlockers,
   diffSnapshots,
   effectiveMethod,
   pollIntervalMs,
@@ -46,8 +47,8 @@ describe('merge method and actions', () => {
     expect(availableActions(snapshot({ autoMerge: { method: 'squash' } }), 'squash')).toEqual(['auto-disable', 'merge'])
   })
 
-  test('hides auto-merge where the repo disallows it, and merge on conflicts', () => {
-    const s = snapshot({ mergeable: 'CONFLICTING', repo: { methods: ['squash'], isAutoMergeAllowed: false } })
+  test('hides auto-merge the viewer cannot enable, and merge on conflicts', () => {
+    const s = snapshot({ mergeable: 'CONFLICTING', viewer: { canMergeAsAdmin: true, canEnableAutoMerge: false } })
     expect(availableActions(s, 'squash')).toEqual([])
     expect(availableActions(snapshot({ state: 'MERGED' }), 'squash')).toEqual([])
   })
@@ -85,5 +86,25 @@ describe('diffSnapshots', () => {
 
   test('stays quiet when nothing changed', () => {
     expect(diffSnapshots(42, snapshot(), snapshot())).toEqual([])
+  })
+})
+
+describe('blocked merges', () => {
+  const blocked = snapshot({
+    mergeStateStatus: 'BLOCKED',
+    threads: [{ id: 't', path: 'a', line: 1, author: 'x', body: 'y', url: 'u', isOutdated: false, replies: [] }],
+  })
+
+  test('offers no merge while blocked, and a bypass only to an admin', () => {
+    expect(availableActions(blocked, 'squash')).toEqual(['auto-enable'])
+    const admin = { ...blocked, viewer: { canMergeAsAdmin: true, canEnableAutoMerge: true } }
+    expect(availableActions(admin, 'squash')).toEqual(['auto-enable', 'bypass'])
+  })
+
+  test('says why', () => {
+    expect(mergeBlockers(blocked)).toEqual(['1 unresolved thread'])
+    expect(mergeBlockers(snapshot({ mergeStateStatus: 'BLOCKED' }))).toEqual(['branch protection rules'])
+    expect(mergeBlockers(snapshot({ mergeStateStatus: 'BEHIND' }))).toEqual(['the branch is behind main'])
+    expect(mergeBlockers(snapshot())).toEqual([])
   })
 })

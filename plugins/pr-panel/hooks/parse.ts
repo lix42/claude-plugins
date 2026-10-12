@@ -136,6 +136,10 @@ export const parseSnapshot = (view: any, graph: any): PrSnapshot => {
         }
       }),
     repo: parseRepoSettings(repoRaw),
+    viewer: {
+      canMergeAsAdmin: Boolean(pr?.viewerCanMergeAsAdmin),
+      canEnableAutoMerge: Boolean(pr?.viewerCanEnableAutoMerge),
+    },
   }
 }
 

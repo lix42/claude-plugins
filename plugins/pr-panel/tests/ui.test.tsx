@@ -51,3 +51,54 @@ test('/pr <url> tracks the PR and draws it in the pane and the band', async ($, 
     await band.unmount()
   }
 })
+
+test('a blocked PR offers a confirmed bypass, and a failed action shows its error in the pane', async ($, on) => {
+  const merges: string[][] = []
+  on('process.run', (_, e) => {
+    if (e.argv[2] === 'merge') {
+      merges.push([...e.argv])
+      return {
+        value: {
+          exitCode: 1,
+          stdout: '',
+          stderr: 'X Pull request acme/app#42 is not mergeable: the base branch policy prohibits the merge.\n',
+          isStdoutTruncated: false,
+          isStderrTruncated: false,
+        },
+      }
+    }
+    return { value: { exitCode: 0, stdout: gh(e.argv), stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
+  })
+  on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('ui.toast', () => ({ value: undefined }))
+  on('clock.now', () => ({ value: 1_000_000 }))
+
+  await $.command.run({
+    command: 'pr',
+    args: REF.url,
+    origin: { kind: 'composer' },
+    presentation: { isFullscreen: false, columns: 160 },
+  })
+  const pane = await $.ui.mount({ plugin: 'pr-panel', surface: 'terminal', component: 'Pane', props: PANE_PROPS, requestId: 'pr-panel', viewport: VIEWPORT })
+
+  expect(await pane.find({ key: 'action-merge' })).toBeUndefined()
+  expect(await pane.find({ type: 'Text', text: /Merge blocked: 1 unresolved thread, a review is required, 1 failing check, 1 pending check/ })).toBeDefined()
+
+  // The first press only asks; Cancel backs out without running anything.
+  await pane.press({ key: 'action-bypass' })
+  expect(await pane.find({ type: 'Text', text: /Bypass rules and squash and merge now\?/ })).toBeDefined()
+  await pane.press({ key: 'cancel' })
+  expect(await pane.find({ key: 'confirm' })).toBeUndefined()
+  expect(merges).toEqual([])
+
+  await pane.press({ key: 'action-bypass' })
+  await pane.press({ key: 'confirm' })
+  expect(merges).toEqual([['gh', 'pr', 'merge', REF.url, '--squash', '--admin']])
+  expect(
+    await pane.find({ type: 'Text', text: /#42 Bypass rules and squash and merge failed: Pull request acme\/app#42 is not mergeable/ }),
+  ).toBeDefined()
+
+  await pane.press({ key: 'dismiss-notice' })
+  expect(await pane.find({ type: 'Text', text: /failed:/ })).toBeUndefined()
+  await pane.unmount()
+})
