@@ -16,6 +16,7 @@ export type Io = {
   notify: (text: string, title: string) => Promise<unknown>
   ask: (question: string, options: string[]) => Promise<string>
   fill: (text: string) => Promise<boolean>
-  openPane: () => Promise<unknown>
+  /** Resolves whether the pane is drawn now, and why not when it waits. */
+  openPane: () => Promise<{ isPlaced: boolean; reason?: string }>
   closePane: () => Promise<unknown>
 }

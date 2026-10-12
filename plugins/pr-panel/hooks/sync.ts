@@ -1,5 +1,5 @@
 import type { PrRef, PrSnapshot, TrackedPr } from '../types'
-import { FULL_REFRESH_MS, IDLE_POLL_MS, diffSnapshots, pollIntervalMs } from './derive'
+import { FULL_REFRESH_MS, IDLE_POLL_MS, LINGER_MS, diffSnapshots, pollIntervalMs } from './derive'
 import { currentBranchPrArgv, probeArgv, probePaths, prViewArgv, runGh, threadsArgv } from './gh'
 import type { Io } from './io'
 import { extractPrRefs, parseHttpReply, parseSnapshot } from './parse'
@@ -30,7 +30,7 @@ export const track = async (io: Io, poller: Poller, refs: readonly PrRef[]) => {
   if (added.length > 0) {
     await io.updatePrs(list => [
       ...list,
-      ...added.map((ref): TrackedPr => ({ ref, snapshot: null, error: null, fetchedAt: 0 })),
+      ...added.map((ref): TrackedPr => ({ ref, snapshot: null, error: null, fetchedAt: 0, endedAt: null })),
     ])
     await io.updateSelected(() => added.at(-1)?.url ?? null)
   }
@@ -126,20 +126,30 @@ export const refresh = async (io: Io, poller: Poller, ref: PrRef, force = false)
     }
     poller.lastFull.set(ref.url, now)
     poller.due.set(ref.url, now + (pollIntervalMs(next) ?? Infinity))
-    await patch(io, ref.url, pr => ({ ...pr, snapshot: next, error: null, fetchedAt: now }))
+    const isEnded = next.state !== 'OPEN'
+    await patch(io, ref.url, pr => ({
+      ...pr,
+      snapshot: next,
+      error: null,
+      fetchedAt: now,
+      endedAt: isEnded ? (pr.endedAt ?? now) : null,
+    }))
     if (prev) await announce(io, ref, prev, next)
   } finally {
     poller.inFlight.delete(ref.url)
   }
 }
 
-/** Refreshes every tracked PR whose turn has come. */
+/** Refreshes every tracked PR whose turn has come, and drops merged or closed ones past their linger. */
 export const tick = async (io: Io, poller: Poller) => {
   const now = await io.now()
   const list = await io.getPrs()
   await Promise.all(
     list.filter(pr => (poller.due.get(pr.ref.url) ?? 0) <= now).map(pr => refresh(io, poller, pr.ref)),
   )
+  for (const pr of list) {
+    if (pr.endedAt !== null && now - pr.endedAt >= LINGER_MS) await untrack(io, poller, pr.ref.url)
+  }
 }
 
 /** Makes every open PR due now, as after a push. */

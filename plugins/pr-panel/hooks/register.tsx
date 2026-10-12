@@ -19,6 +19,7 @@ const prs = atom({ plugin: 'pr-panel', key: 'prs' } as const, [] as TrackedPr[])
 const selected = atom({ plugin: 'pr-panel', key: 'selected' } as const, null as string | null)
 const methods = atom({ plugin: 'pr-panel', key: 'methods' } as const, {} as Record<string, MergeMethod>)
 const busy = atom({ plugin: 'pr-panel', key: 'busy' } as const, null as string | null)
+const expanded = atom({ plugin: 'pr-panel', key: 'expanded' } as const, [] as string[])
 
 /** The one place `$` is turned into what the rest of the plugin uses. */
 function makeIo($: EngineInterface): Io {
@@ -60,8 +61,8 @@ const runCommand = async (io: Io, poller: Poller, current: string | null, args: 
       if (!branchPr) return 'No open PR for this branch. Run /pr <url|number> to track one.'
       await track(io, poller, [branchPr])
     }
-    await io.openPane()
-    return 'PR panel opened.'
+    const opened = await io.openPane()
+    return opened.isPlaced ? 'PR panel opened.' : `PR panel is open but waits undrawn: ${opened.reason}`
   }
 
   const fallback = (await selectedPr(io, current))?.ref ?? (await findBranchPr(io))
@@ -108,6 +109,12 @@ export const register: Register = on => {
     return renderBand($.ui.resolve(e), list, e.props.maxRows)
   })
 
+  // Says in the transcript (not to the model) who closed the pane, so a pane that vanished can be told apart.
+  on('ui.close', async ($, e, next) => {
+    if (e.id === PANE) $.ui.log(`pr-panel: pane closed by ${e.origin.kind}; /pr reopens it`)
+    return next(e)
+  })
+
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const io = makeIo($)
     const list = await read($, prs)
@@ -116,7 +123,7 @@ export const register: Register = on => {
     const picked = await read($, methods)
     const method = pr?.snapshot ? effectiveMethod(pr.snapshot, picked[pr.ref.url]) : null
 
-    return renderPane($.ui.resolve(e), list, pr, method, await read($, busy), {
+    return renderPane($.ui.resolve(e), list, pr, method, await read($, busy), await read($, expanded), {
       select: next => void io.updateSelected(() => next),
       refresh: () => void (pr && refresh(io, poller, pr.ref, true)),
       untrack: () => void (pr && untrack(io, poller, pr.ref.url)),
@@ -124,6 +131,8 @@ export const register: Register = on => {
       act: action => void (pr?.snapshot && runAction(io, poller, pr.ref, pr.snapshot, action, method)),
       fixCheck: check => void (pr && fixCheck(io, pr.ref, check)),
       fixThread: thread => void (pr && fixThread(io, pr.ref, thread)),
+      toggleThread: id =>
+        void update($, expanded, ids => (ids.includes(id) ? ids.filter(one => one !== id) : [...ids, id])),
     })
   })
 }

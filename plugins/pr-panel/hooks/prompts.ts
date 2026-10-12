@@ -28,6 +28,14 @@ export const fixThreadPrompt = (ref: PrRef, thread: Thread): string => {
       .split('\n')
       .map(line => `> ${line}`)
       .join('\n'),
+    ...thread.replies.flatMap(reply => [
+      '',
+      `${reply.author} replied:`,
+      reply.body
+        .split('\n')
+        .map(line => `> ${line}`)
+        .join('\n'),
+    ]),
     '',
     `Thread: ${thread.url}`,
     '',

@@ -14,6 +14,16 @@ export type PaneHandlers = {
   act: (action: ActionId) => void
   fixCheck: (check: Check) => void
   fixThread: (thread: Thread) => void
+  toggleThread: (id: string) => void
+}
+
+/** Single keys that press a button while the pane holds the keyboard (ctrl+x tab). */
+const ACTION_HOTKEY: Record<ActionId, string> = {
+  'auto-enable': 'a',
+  'auto-disable': 'a',
+  merge: 'm',
+  ready: 'd',
+  rerun: 'x',
 }
 
 const MAX_BAND_ROWS = 3
@@ -70,6 +80,7 @@ const renderChecks = (ui: Ui, s: PrSnapshot, handlers: PaneHandlers) => {
   const c = countChecks(s.checks)
   if (c.total === 0) return <Text dimColor>No checks</Text>
   const listed = s.checks.filter(check => check.state === 'fail' || check.state === 'pending')
+  const firstFailed = listed.find(check => check.state === 'fail')
   return (
     <Box flexDirection="column">
       <Text bold>
@@ -85,7 +96,14 @@ const renderChecks = (ui: Ui, s: PrSnapshot, handlers: PaneHandlers) => {
             {CHECK_MARK[check.state]} {check.workflow ? `${check.workflow} / ` : ''}
             {check.name}{' '}
           </Text>
-          {check.state === 'fail' && <Button key={`fix-check-${i}`} label="Fix" onPress={() => handlers.fixCheck(check)} />}
+          {check.state === 'fail' && (
+            <Button
+              key={`fix-check-${i}`}
+              label="Fix"
+              hotkey={check === firstFailed ? 'f' : undefined}
+              onPress={() => handlers.fixCheck(check)}
+            />
+          )}
         </Box>
       ))}
     </Box>
@@ -103,25 +121,44 @@ const renderReviews = (ui: Ui, s: PrSnapshot) => {
   )
 }
 
-const renderThreads = (ui: Ui, s: PrSnapshot, handlers: PaneHandlers) => {
-  const { Box, Text, Button } = ui
+const threadMarkdown = (thread: Thread) =>
+  [{ author: thread.author, body: thread.body }, ...thread.replies]
+    .map(c => `**${c.author}**: ${c.body.replace(/<!--[\s\S]*?-->/g, '').trim()}`)
+    .join('\n\n')
+
+const renderThreads = (ui: Ui, s: PrSnapshot, expanded: readonly string[], handlers: PaneHandlers) => {
+  const { Box, Text, Button, Markdown } = ui
   if (s.threads.length === 0) return null
   return (
     <Box flexDirection="column">
       <Text bold>Unresolved threads ({s.threads.length})</Text>
-      {s.threads.map((thread, i) => (
-        <Box key={`thread-${i}`}>
-          <Text wrap="truncate">
-            {'  '}
-            <Text color="suggestion">
-              {thread.path}
-              {thread.line ? `:${thread.line}` : ''}
-            </Text>{' '}
-            {thread.author}: {firstLines(thread.body, 1)}{' '}
-          </Text>
-          <Button key={`fix-thread-${i}`} label="Fix" onPress={() => handlers.fixThread(thread)} />
-        </Box>
-      ))}
+      {s.threads.map((thread, i) => {
+        const isOpen = expanded.includes(thread.id)
+        const replies = thread.replies.length ? ` (+${thread.replies.length})` : ''
+        return (
+          <Box key={`thread-${i}`} flexDirection="column">
+            <Box>
+              <Button key={`toggle-thread-${i}`} plain onPress={() => handlers.toggleThread(thread.id)}>
+                {isOpen ? '▾ ' : '▸ '}
+                <Text color="suggestion">
+                  {thread.path}
+                  {thread.line ? `:${thread.line}` : ''}
+                </Text>{' '}
+                {thread.author}
+                {replies}: {isOpen ? '' : firstLines(thread.body, 1)}
+              </Button>
+              <Text> </Text>
+              <Button key={`fix-thread-${i}`} label="Fix" onPress={() => handlers.fixThread(thread)} />
+            </Box>
+            {isOpen && (
+              <Box flexDirection="column" paddingLeft={4}>
+                <Markdown key={`thread-body-${i}`} text={threadMarkdown(thread)} />
+                <Text dimColor>{thread.url}</Text>
+              </Box>
+            )}
+          </Box>
+        )
+      })}
     </Box>
   )
 }
@@ -173,6 +210,7 @@ const renderActions = (ui: Ui, pr: TrackedPr, s: PrSnapshot, method: MergeMethod
             key={`action-${action}`}
             label={actionLabel(action, method)}
             variant={action === 'auto-enable' ? 'primary' : undefined}
+            hotkey={ACTION_HOTKEY[action]}
             onPress={() => handlers.act(action)}
           />
         ))}
@@ -188,6 +226,7 @@ export const renderPane = (
   pr: TrackedPr | null,
   method: MergeMethod | null,
   busyLabel: string | null,
+  expanded: readonly string[],
   handlers: PaneHandlers,
 ) => {
   const { Box, Text, Button } = ui
@@ -197,16 +236,18 @@ export const renderPane = (
   return (
     <Box flexDirection="column" gap={1}>
       <Box>
-        {list.map(item => (
-          <Button
-            key={`tab-${item.ref.url}`}
-            label={`#${item.ref.number}`}
-            variant={item.ref.url === pr.ref.url ? 'primary' : undefined}
-            onPress={() => handlers.select(item.ref.url)}
-          />
-        ))}
-        <Button key="refresh" label="Refresh" onPress={handlers.refresh} />
-        <Button key="untrack" label="Untrack" onPress={handlers.untrack} />
+        {list.length > 1 &&
+          list.map((item, i) => (
+            <Button
+              key={`tab-${item.ref.url}`}
+              label={`#${item.ref.number}`}
+              hotkey={i < 9 ? String(i + 1) : undefined}
+              variant={item.ref.url === pr.ref.url ? 'primary' : undefined}
+              onPress={() => handlers.select(item.ref.url)}
+            />
+          ))}
+        <Button key="refresh" label="Refresh" hotkey="r" onPress={handlers.refresh} />
+        <Button key="untrack" label="Untrack" hotkey="u" onPress={handlers.untrack} />
       </Box>
       {busyLabel && <Text color="warning">{busyLabel}…</Text>}
       {pr.error && <Text color="error">{pr.error.split('\n')[0]}</Text>}
@@ -217,11 +258,12 @@ export const renderPane = (
           {renderHeader(ui, pr, s)}
           {renderChecks(ui, s, handlers)}
           {renderReviews(ui, s)}
-          {renderThreads(ui, s, handlers)}
+          {renderThreads(ui, s, expanded, handlers)}
           {renderComments(ui, s)}
           {renderActions(ui, pr, s, method, handlers)}
         </Box>
       )}
+      <Text dimColor>ctrl+x tab focuses this pane · Tab/arrows move · Enter presses · Esc returns</Text>
     </Box>
   )
 }

@@ -34,14 +34,18 @@ export type Comment = {
   isBot: boolean
 }
 
-/** An unresolved review thread, by its first comment. */
+export type ThreadReply = { author: string; body: string }
+
+/** An unresolved review thread: its first comment, and the replies under it. */
 export type Thread = {
+  id: string
   path: string
   line: number | null
   author: string
   body: string
   url: string
   isOutdated: boolean
+  replies: ThreadReply[]
 }
 
 export type RepoSettings = {
@@ -72,6 +76,8 @@ export type TrackedPr = {
   snapshot: PrSnapshot | null
   error: string | null
   fetchedAt: number
+  /** When it was first seen merged or closed; it leaves the band and the pane LINGER_MS later. */
+  endedAt: number | null
 }
 
 declare module 'claude-code' {
@@ -83,6 +89,8 @@ declare module 'claude-code' {
       methods: Record<string, MergeMethod>
       /** The action running now, shown in the pane. */
       busy: string | null
+      /** The ids of the threads shown expanded. */
+      expanded: string[]
     }
   }
 }

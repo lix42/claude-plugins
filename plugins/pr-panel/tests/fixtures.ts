@@ -50,11 +50,17 @@ export const GRAPH = {
         reviewThreads: {
           nodes: [
             {
+              id: 'PRRT_1',
               isResolved: false,
               isOutdated: false,
               path: 'src/thing.ts',
               line: 12,
-              comments: { nodes: [{ author: { login: 'alice' }, body: 'Handle null here', url: 'https://github.com/acme/app/pull/42#t1' }] },
+              comments: {
+                nodes: [
+                  { author: { login: 'alice' }, body: 'Handle null here', url: 'https://github.com/acme/app/pull/42#t1' },
+                  { author: { login: 'bob' }, body: 'Agreed, it can be null after a reset', url: 'u2' },
+                ],
+              },
             },
             { isResolved: true, isOutdated: false, path: 'src/old.ts', line: 3, comments: { nodes: [] } },
           ],

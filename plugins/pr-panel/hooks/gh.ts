@@ -23,8 +23,8 @@ const THREADS_QUERY = `query($owner: String!, $repo: String!, $number: Int!) {
     pullRequest(number: $number) {
       reviewThreads(first: 100) {
         nodes {
-          isResolved isOutdated path line
-          comments(first: 1) { nodes { author { login } body url } }
+          id isResolved isOutdated path line
+          comments(first: 20) { nodes { author { login } body url } }
         }
       }
     }

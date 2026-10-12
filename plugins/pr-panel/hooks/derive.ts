@@ -4,6 +4,8 @@ export const FAST_POLL_MS = 15_000
 export const IDLE_POLL_MS = 60_000
 /** Probes miss thread resolutions, so a full fetch runs at least this often. */
 export const FULL_REFRESH_MS = 5 * 60_000
+/** How long a merged or closed PR stays on screen before it is untracked. */
+export const LINGER_MS = 2 * 60_000
 
 const METHOD_ORDER: MergeMethod[] = ['squash', 'merge', 'rebase']
 

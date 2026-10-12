@@ -56,13 +56,13 @@ describe('merge method and actions', () => {
 test('summaryLine compresses the state', () => {
   const s = snapshot({
     checks: [check('pass'), check('fail'), check('pending')],
-    threads: [{ path: 'a', line: 1, author: 'x', body: 'y', url: 'u', isOutdated: false }],
+    threads: [{ id: 't', path: 'a', line: 1, author: 'x', body: 'y', url: 'u', isOutdated: false, replies: [] }],
     autoMerge: { method: 'squash' },
   })
-  expect(summaryLine({ ref: REF, snapshot: s, error: null, fetchedAt: 0 })).toBe(
+  expect(summaryLine({ ref: REF, snapshot: s, error: null, fetchedAt: 0, endedAt: null })).toBe(
     '#42 · ✓1 ✗1 …1 · 1 unresolved · auto-merge: squash',
   )
-  expect(summaryLine({ ref: REF, snapshot: null, error: null, fetchedAt: 0 })).toBe('#42 loading…')
+  expect(summaryLine({ ref: REF, snapshot: null, error: null, fetchedAt: 0, endedAt: null })).toBe('#42 loading…')
 })
 
 describe('diffSnapshots', () => {

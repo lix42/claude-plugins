@@ -21,13 +21,16 @@ test('fixCheckPrompt names the check and carries the log', () => {
 
 test('fixThreadPrompt quotes the comment with its place', () => {
   const text = fixThreadPrompt(REF, {
+    id: 't1',
     path: 'src/a.ts',
     line: 3,
     author: 'alice',
     body: 'two\nlines',
     url: 'https://t',
     isOutdated: false,
+    replies: [{ author: 'me', body: 'on it' }],
   })
   expect(text.includes('at src/a.ts:3:')).toBe(true)
   expect(text.includes('> two\n> lines')).toBe(true)
+  expect(text.includes('me replied:\n> on it')).toBe(true)
 })

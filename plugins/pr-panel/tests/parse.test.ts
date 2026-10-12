@@ -36,7 +36,16 @@ describe('parseSnapshot', () => {
 
   test('keeps only unresolved threads', () => {
     expect(s.threads).toEqual([
-      { path: 'src/thing.ts', line: 12, author: 'alice', body: 'Handle null here', url: 'https://github.com/acme/app/pull/42#t1', isOutdated: false },
+      {
+        id: 'PRRT_1',
+        path: 'src/thing.ts',
+        line: 12,
+        author: 'alice',
+        body: 'Handle null here',
+        url: 'https://github.com/acme/app/pull/42#t1',
+        isOutdated: false,
+        replies: [{ author: 'bob', body: 'Agreed, it can be null after a reset' }],
+      },
     ])
   })
 

@@ -38,6 +38,25 @@ stops tracking the PR shown.
   - **Ready for review** on a draft.
   - **Re-run failed** for failed Actions runs.
 
+### Keys
+
+`ctrl+x tab` moves the keyboard into the pane (Tab, the arrows and Enter walk and
+press its buttons, Esc goes back to the prompt, `ctrl+x x` closes it). While the
+pane has the keyboard, single keys press buttons:
+
+| Key | Button |
+| --- | --- |
+| `r` / `u` | Refresh / Untrack |
+| `1`–`9` | Switch PR tab (shown with more than one PR) |
+| `a` | Enable or disable auto-merge |
+| `m` | Merge (asks to confirm) |
+| `d` | Ready for review |
+| `x` | Re-run failed |
+| `f` | Fix the first failed check |
+
+A thread row expands on press to show the whole conversation, and collapses on
+the next.
+
 On narrow terminals (under 144 columns) a pane opened unasked waits; the band
 above the prompt shows a summary line per PR either way, for example
 `#42 · ✓5 ✗1 …2 · 2 unresolved · auto-merge: squash`.
@@ -60,6 +79,9 @@ GitHub cannot push to a local session, so the mod polls, cheaply:
 
 Changes raise a toast. Finished checks, new reviews and a merge or close also
 raise a desktop notification.
+
+A merged or closed PR stops polling, shows its final state for two minutes, then
+leaves the band and the pane; the pane closes once no PR is left.
 
 ## Layout
 

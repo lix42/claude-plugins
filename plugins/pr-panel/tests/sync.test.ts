@@ -1,7 +1,8 @@
 import { expect, test } from 'claude-code/testing'
 
 import type { Io } from '../hooks/io'
-import { createPoller, refresh, track } from '../hooks/sync'
+import { LINGER_MS } from '../hooks/derive'
+import { createPoller, refresh, tick, track } from '../hooks/sync'
 import type { TrackedPr } from '../types'
 import { GRAPH, REF, VIEW } from './fixtures'
 
@@ -11,6 +12,7 @@ const fakeIo = (answer: (argv: readonly string[]) => string) => {
   let now = 1_000_000
   const calls: string[][] = []
   const toasts: string[] = []
+  let closes = 0
   const io: Io = {
     run: async argv => {
       calls.push([...argv])
@@ -26,10 +28,10 @@ const fakeIo = (answer: (argv: readonly string[]) => string) => {
     notify: async () => null,
     ask: async () => 'Cancel',
     fill: async () => true,
-    openPane: async () => null,
-    closePane: async () => null,
+    openPane: async () => ({ isPlaced: true }),
+    closePane: async () => void (closes += 1),
   }
-  return { io, calls, toasts, list: () => list, advance: (ms: number) => (now += ms) }
+  return { io, calls, toasts, list: () => list, closes: () => closes, advance: (ms: number) => (now += ms) }
 }
 
 const isFull = (argv: readonly string[]) => argv[1] === 'pr' && argv[2] === 'view'
@@ -74,4 +76,27 @@ test('keeps the PR and shows the error when gh fails', async () => {
   fake.io.run = async () => ({ exitCode: 1, stdout: '', stderr: 'gh: not logged in' })
   await track(fake.io, createPoller(), [REF])
   expect(fake.list()[0]).toMatchObject({ snapshot: null, error: 'gh: not logged in' })
+})
+
+test('a merged PR stays on screen for LINGER_MS, then is untracked and the pane closes', async () => {
+  let view: Record<string, unknown> = VIEW
+  const fake = fakeIo(argv => {
+    if (argv.includes('-i')) return 'HTTP/2.0 200 OK\nEtag: W/"3"\n\n{}'
+    return JSON.stringify(isFull(argv) ? view : GRAPH)
+  })
+  const poller = createPoller()
+  await track(fake.io, poller, [REF])
+
+  view = { ...VIEW, state: 'MERGED' }
+  await refresh(fake.io, poller, REF)
+  expect(fake.list()[0]?.endedAt).toBe(1_000_000)
+
+  fake.advance(LINGER_MS - 1)
+  await tick(fake.io, poller)
+  expect(fake.list().length).toBe(1)
+
+  fake.advance(1)
+  await tick(fake.io, poller)
+  expect(fake.list()).toEqual([])
+  expect(fake.closes()).toBe(1)
 })

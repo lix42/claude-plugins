@@ -123,14 +123,16 @@ export const parseSnapshot = (view: any, graph: any): PrSnapshot => {
     threads: (pr?.reviewThreads?.nodes ?? [])
       .filter((t: any) => !t.isResolved)
       .map((t: any): Thread => {
-        const first = t.comments?.nodes?.[0] ?? {}
+        const [first = {}, ...rest] = t.comments?.nodes ?? []
         return {
+          id: String(t.id ?? `${t.path}:${t.line}`),
           path: String(t.path ?? ''),
           line: typeof t.line === 'number' ? t.line : null,
           author: login(first.author),
           body: String(first.body ?? ''),
           url: String(first.url ?? ''),
           isOutdated: Boolean(t.isOutdated),
+          replies: rest.map((c: any) => ({ author: login(c.author), body: String(c.body ?? '') })),
         }
       }),
     repo: parseRepoSettings(repoRaw),

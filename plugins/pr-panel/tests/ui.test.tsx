@@ -35,6 +35,15 @@ test('/pr <url> tracks the PR and draws it in the pane and the band', async ($, 
     expect(await pane.find({ key: 'fix-thread-0' })).toBeDefined()
     expect(await pane.find({ key: 'action-auto-enable' })).toBeDefined()
     expect(await pane.find({ key: 'method-rebase' })).toBeDefined()
+    // One PR: no tab row.
+    expect(await pane.find({ key: `tab-${REF.url}` })).toBeUndefined()
+
+    // A thread opens on press to show its whole conversation, and closes again.
+    expect(await pane.find({ key: 'thread-body-0' })).toBeUndefined()
+    await pane.press({ key: 'toggle-thread-0' })
+    expect((await pane.find({ key: 'thread-body-0' }))?.text).toMatch(/Agreed, it can be null/)
+    await pane.press({ key: 'toggle-thread-0' })
+    expect(await pane.find({ key: 'thread-body-0' })).toBeUndefined()
     await pane.unmount()
 
     const band = await $.ui.mount({ plugin: 'pr-panel', surface, component: 'AbovePrompt', props: BAND_PROPS, viewport: VIEWPORT })
