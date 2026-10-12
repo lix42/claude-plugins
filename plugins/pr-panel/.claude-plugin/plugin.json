@@ -1,0 +1,9 @@
+{
+  "name": "pr-panel",
+  "description": "Live panel for the GitHub PRs this session opens: checks, reviews, unresolved threads and comments, with auto-merge, merge, re-run and fix-this actions",
+  "version": "0.1.0",
+  "author": {
+    "name": "lix42"
+  },
+  "types": "./types/index.d.ts"
+}

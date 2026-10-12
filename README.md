@@ -28,7 +28,8 @@ Then enable individual plugins under `enabledPlugins`:
   "enabledPlugins": {
     "eng-records@lix42": true,
     "tasks@lix42": true,
-    "ship@lix42": true
+    "ship@lix42": true,
+    "pr-panel@lix42": true
   }
 }
 ```
@@ -44,7 +45,7 @@ codex plugin add tasks@lix42
 codex plugin add ship@lix42
 ```
 
-`eng-records` remains Claude Code-only.
+`eng-records` and `pr-panel` remain Claude Code-only.
 
 ## Plugins
 
@@ -262,3 +263,21 @@ report changes after the project or installed plugins change.
 The `ship` skill also triggers when you say things like "ship it" or "ready to
 open a PR." It never merges a GitHub pull request; if a publishing helper opens a
 draft PR, `ship` drives it green and then marks it ready for review.
+
+### pr-panel
+
+A live panel for the GitHub PRs a session opens. Any `gh pr create` the session
+runs (so `/ship` too), the current branch's open PR at session start, and any PR
+named with `/pr <url|number>` gets a tab showing checks, latest reviews,
+unresolved review threads and recent comments. A one-line summary per PR sits
+above the prompt.
+
+Buttons enable or disable auto-merge, merge with a method the repo allows (after
+a confirmation), mark a draft ready, and re-run failed Actions runs. **Fix** on a
+failed check or an unresolved thread puts a prompt for Claude in the prompt box
+for you to review.
+
+It polls with conditional requests that cost nothing against the rate limit
+while nothing changes, and raises a notification when checks finish, a review
+lands, or the PR is merged. Requires an authenticated `gh`. See
+[plugins/pr-panel/README.md](plugins/pr-panel/README.md).
