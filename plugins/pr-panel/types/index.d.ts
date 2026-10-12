@@ -1,0 +1,88 @@
+export type MergeMethod = 'squash' | 'merge' | 'rebase'
+
+/** Where a PR lives, parsed from its URL. */
+export type PrRef = {
+  url: string
+  host: string
+  owner: string
+  repo: string
+  number: number
+}
+
+export type CheckState = 'pass' | 'fail' | 'pending' | 'skipped'
+
+export type Check = {
+  name: string
+  workflow: string | null
+  state: CheckState
+  url: string | null
+  /** The Actions run behind the check, when it is one. */
+  runId: string | null
+}
+
+export type Review = {
+  author: string
+  state: string
+  body: string
+}
+
+export type Comment = {
+  author: string
+  body: string
+  url: string
+  createdAt: string
+  isBot: boolean
+}
+
+/** An unresolved review thread, by its first comment. */
+export type Thread = {
+  path: string
+  line: number | null
+  author: string
+  body: string
+  url: string
+  isOutdated: boolean
+}
+
+export type RepoSettings = {
+  methods: MergeMethod[]
+  isAutoMergeAllowed: boolean
+}
+
+export type PrSnapshot = {
+  title: string
+  state: 'OPEN' | 'MERGED' | 'CLOSED'
+  isDraft: boolean
+  mergeable: string
+  mergeStateStatus: string
+  reviewDecision: string
+  headRefName: string
+  baseRefName: string
+  headSha: string
+  autoMerge: { method: MergeMethod } | null
+  checks: Check[]
+  reviews: Review[]
+  comments: Comment[]
+  threads: Thread[]
+  repo: RepoSettings
+}
+
+export type TrackedPr = {
+  ref: PrRef
+  snapshot: PrSnapshot | null
+  error: string | null
+  fetchedAt: number
+}
+
+declare module 'claude-code' {
+  interface PluginState {
+    'pr-panel': {
+      prs: TrackedPr[]
+      selected: string | null
+      /** The merge method picked per PR URL; the repo's default otherwise. */
+      methods: Record<string, MergeMethod>
+      /** The action running now, shown in the pane. */
+      busy: string | null
+    }
+  }
+}

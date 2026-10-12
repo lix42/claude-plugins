@@ -23,6 +23,12 @@
       "description": "Finish a coding task and ship it: quality gates, code review, mark task done, then open a PR or merge back linearly",
       "source": "./plugins/ship",
       "category": "productivity"
+    },
+    {
+      "name": "pr-panel",
+      "description": "Live panel for the GitHub PRs a session opens: checks, reviews, unresolved threads and comments, with auto-merge, merge, re-run and fix-this actions",
+      "source": "./plugins/pr-panel",
+      "category": "productivity"
     }
   ]
 }
