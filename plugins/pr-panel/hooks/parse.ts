@@ -109,7 +109,12 @@ export const parseSnapshot = (view: any, graph: any): PrSnapshot => {
     autoMerge: view.autoMergeRequest ? { method: method ?? 'merge' } : null,
     checks: (view.statusCheckRollup ?? []).map(parseCheck),
     reviews: (view.latestReviews ?? []).map(
-      (r: any): Review => ({ author: login(r.author), state: String(r.state), body: String(r.body ?? '') }),
+      (r: any): Review => ({
+        id: String(r.id ?? r.submittedAt ?? `${login(r.author)}:${r.state}`),
+        author: login(r.author),
+        state: String(r.state),
+        body: String(r.body ?? ''),
+      }),
     ),
     comments: (view.comments ?? []).map(
       (c: any): Comment => ({
@@ -133,8 +138,10 @@ export const parseSnapshot = (view: any, graph: any): PrSnapshot => {
           url: String(first.url ?? ''),
           isOutdated: Boolean(t.isOutdated),
           replies: rest.map((c: any) => ({ author: login(c.author), body: String(c.body ?? '') })),
+          commentCount: Number(t.comments?.totalCount ?? rest.length + 1),
         }
       }),
+    hasMoreThreads: Boolean(pr?.reviewThreads?.pageInfo?.hasNextPage),
     repo: parseRepoSettings(repoRaw),
     viewer: {
       canMergeAsAdmin: Boolean(pr?.viewerCanMergeAsAdmin),

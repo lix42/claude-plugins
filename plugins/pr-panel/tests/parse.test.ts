@@ -45,6 +45,7 @@ describe('parseSnapshot', () => {
         url: 'https://github.com/acme/app/pull/42#t1',
         isOutdated: false,
         replies: [{ author: 'bob', body: 'Agreed, it can be null after a reset' }],
+        commentCount: 2,
       },
     ])
   })

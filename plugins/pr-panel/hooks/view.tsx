@@ -52,9 +52,18 @@ const CHECK_COLOR = { fail: 'error', pending: 'warning', pass: 'success', skippe
 
 export const renderBand = (ui: Ui, list: readonly TrackedPr[], maxRows: number) => {
   const { Box, Text } = ui
+  if (maxRows <= 1 && list.length > 1) {
+    // One row: the newest PR and how many more, together.
+    const newest = list[list.length - 1]
+    return (
+      <Text dimColor={newest?.snapshot != null && newest.snapshot.state !== 'OPEN'} wrap="truncate">
+        {newest ? summaryLine(newest) : ''} · +{list.length - 1} more · /pr
+      </Text>
+    )
+  }
   // One row is kept for the "+n more" line whenever anything is left out.
-  const room = Math.max(1, Math.min(MAX_BAND_ROWS, list.length > maxRows ? maxRows - 1 : maxRows))
-  const shown = list.slice(-room)
+  const room = Math.min(MAX_BAND_ROWS, list.length > maxRows ? maxRows - 1 : maxRows)
+  const shown = list.slice(-Math.max(1, room))
   const hidden = list.length - shown.length
   return (
     <Box flexDirection="column">
@@ -144,7 +153,9 @@ const renderThreads = (ui: Ui, s: PrSnapshot, expanded: readonly string[], handl
   if (s.threads.length === 0) return null
   return (
     <Box flexDirection="column">
-      <Text bold>Unresolved threads ({s.threads.length})</Text>
+      <Text bold>
+        Unresolved threads ({s.threads.length}){s.hasMoreThreads ? ' · only the first 100 threads are checked' : ''}
+      </Text>
       {s.threads.map((thread, i) => {
         const isOpen = expanded.includes(thread.id)
         const replies = thread.replies.length ? ` (+${thread.replies.length})` : ''
@@ -166,6 +177,9 @@ const renderThreads = (ui: Ui, s: PrSnapshot, expanded: readonly string[], handl
             {isOpen && (
               <Box flexDirection="column" paddingLeft={4}>
                 <Markdown key={`thread-body-${i}`} text={threadMarkdown(thread)} />
+                {thread.commentCount > thread.replies.length + 1 && (
+                  <Text color="warning">+{thread.commentCount - thread.replies.length - 1} more comments on GitHub</Text>
+                )}
                 <Text dimColor>{thread.url}</Text>
               </Box>
             )}

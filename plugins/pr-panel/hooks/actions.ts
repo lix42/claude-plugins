@@ -67,7 +67,12 @@ export const runAction = async (
           ? disableAutoArgv(ref)
           : action === 'ready'
             ? readyArgv(ref)
-            : mergeArgv(ref, method ?? 'merge', action === 'auto-enable' ? 'auto' : action === 'bypass' ? 'admin' : 'now')
+            : mergeArgv(
+                ref,
+                method ?? 'merge',
+                action === 'auto-enable' ? 'auto' : action === 'bypass' ? 'admin' : 'now',
+                snapshot.headSha,
+              )
       await report(io, ref, label, await runGh(io, argv, 60_000))
     }
     await refresh(io, poller, ref, true)

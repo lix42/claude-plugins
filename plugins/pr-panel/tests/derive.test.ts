@@ -38,8 +38,13 @@ describe('merge method and actions', () => {
     expect(effectiveMethod(snapshot({ repo: { methods: [], isAutoMergeAllowed: false } }), undefined)).toBe(null)
   })
 
-  test('offers auto-merge, merge and re-run on an open PR with a failed run', () => {
-    expect(availableActions(snapshot({ checks: [check('fail', '1')] }), 'squash')).toEqual(['auto-enable', 'merge', 'rerun'])
+  test('offers merge, not auto-merge, on a PR that can merge now, and re-run on a finished failed run', () => {
+    expect(availableActions(snapshot({ checks: [check('fail', '1')] }), 'squash')).toEqual(['merge', 'rerun'])
+  })
+
+  test('does not offer re-run while the failed run still has jobs going', () => {
+    const checks = [check('fail', '1'), { ...check('pending', '1'), name: 'other' }]
+    expect(availableActions(snapshot({ checks, mergeStateStatus: 'BLOCKED' }), 'squash')).toEqual(['auto-enable'])
   })
 
   test('offers ready on a draft and disable once auto-merge is on', () => {
@@ -57,7 +62,7 @@ describe('merge method and actions', () => {
 test('summaryLine compresses the state', () => {
   const s = snapshot({
     checks: [check('pass'), check('fail'), check('pending')],
-    threads: [{ id: 't', path: 'a', line: 1, author: 'x', body: 'y', url: 'u', isOutdated: false, replies: [] }],
+    threads: [{ id: 't', path: 'a', line: 1, author: 'x', body: 'y', url: 'u', isOutdated: false, replies: [], commentCount: 1 }],
     autoMerge: { method: 'squash' },
   })
   expect(summaryLine({ ref: REF, snapshot: s, error: null, fetchedAt: 0, endedAt: null })).toBe(
@@ -78,7 +83,7 @@ describe('diffSnapshots', () => {
 
   test('announces new reviews and human comments', () => {
     const next = snapshot({
-      reviews: [{ author: 'alice', state: 'CHANGES_REQUESTED', body: '' }],
+      reviews: [{ id: 'r1', author: 'alice', state: 'CHANGES_REQUESTED', body: '' }],
       comments: [{ author: 'bob', body: 'hi', url: 'u', createdAt: '', isBot: false }],
     })
     expect(diffSnapshots(42, snapshot(), next).map(c => c.text)).toEqual(['#42: alice changes requested', '#42: 1 new comment'])
@@ -92,7 +97,7 @@ describe('diffSnapshots', () => {
 describe('blocked merges', () => {
   const blocked = snapshot({
     mergeStateStatus: 'BLOCKED',
-    threads: [{ id: 't', path: 'a', line: 1, author: 'x', body: 'y', url: 'u', isOutdated: false, replies: [] }],
+    threads: [{ id: 't', path: 'a', line: 1, author: 'x', body: 'y', url: 'u', isOutdated: false, replies: [], commentCount: 1 }],
   })
 
   test('offers no merge while blocked, and a bypass only to an admin', () => {
@@ -106,5 +111,25 @@ describe('blocked merges', () => {
     expect(mergeBlockers(snapshot({ mergeStateStatus: 'BLOCKED' }))).toEqual(['branch protection rules'])
     expect(mergeBlockers(snapshot({ mergeStateStatus: 'BEHIND' }))).toEqual(['the branch is behind main'])
     expect(mergeBlockers(snapshot())).toEqual([])
+  })
+})
+
+describe('diffSnapshots by identity', () => {
+  const thread = (id: string) => ({ id, path: 'a', line: 1, author: 'x', body: 'y', url: 'u', isOutdated: false, replies: [], commentCount: 1 })
+
+  test('announces a second review in the same state', () => {
+    const prev = snapshot({ reviews: [{ id: 'r1', author: 'alice', state: 'COMMENTED', body: '' }] })
+    const next = snapshot({ reviews: [{ id: 'r2', author: 'alice', state: 'COMMENTED', body: '' }] })
+    expect(diffSnapshots(42, prev, next).map(c => c.text)).toEqual(['#42: alice commented'])
+  })
+
+  test('announces a new thread even when another was resolved', () => {
+    const changes = diffSnapshots(42, snapshot({ threads: [thread('a')] }), snapshot({ threads: [thread('b')] }))
+    expect(changes.map(c => c.text)).toEqual(['#42: 1 new unresolved thread'])
+  })
+
+  test('announces checks that went from absent to finished', () => {
+    const changes = diffSnapshots(42, snapshot({ checks: [] }), snapshot({ checks: [check('pass')] }))
+    expect(changes.map(c => c.text)).toEqual(['#42: all checks passed'])
   })
 })

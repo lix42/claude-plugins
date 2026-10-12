@@ -23,9 +23,10 @@ const THREADS_QUERY = `query($owner: String!, $repo: String!, $number: Int!) {
     pullRequest(number: $number) {
       viewerCanMergeAsAdmin viewerCanEnableAutoMerge
       reviewThreads(first: 100) {
+        pageInfo { hasNextPage }
         nodes {
           id isResolved isOutdated path line
-          comments(first: 20) { nodes { author { login } body url } }
+          comments(first: 20) { totalCount nodes { author { login } body url } }
         }
       }
     }
@@ -56,8 +57,8 @@ export const probePaths = (ref: PrRef, headSha: string | null): string[] => [
   `repos/${slug(ref)}/pulls/${ref.number}`,
   ...(headSha
     ? [
-        `repos/${slug(ref)}/commits/${headSha}/check-runs?per_page=1`,
-        `repos/${slug(ref)}/commits/${headSha}/status?per_page=1`,
+        `repos/${slug(ref)}/commits/${headSha}/check-runs?per_page=100`,
+        `repos/${slug(ref)}/commits/${headSha}/status?per_page=100`,
       ]
     : []),
 ]
@@ -65,8 +66,10 @@ export const probePaths = (ref: PrRef, headSha: string | null): string[] => [
 /** `now` merges, `auto` queues auto-merge, `admin` bypasses the branch rules. */
 export type MergeMode = 'now' | 'auto' | 'admin'
 
-export const mergeArgv = (ref: PrRef, method: MergeMethod, mode: MergeMode) => [
+/** Pinned to `headSha`, so a push after the pane was drawn makes the merge fail rather than take unseen commits. */
+export const mergeArgv = (ref: PrRef, method: MergeMethod, mode: MergeMode, headSha: string) => [
   'gh', 'pr', 'merge', ref.url, `--${method}`, ...(mode === 'now' ? [] : [`--${mode}`]),
+  '--match-head-commit', headSha,
 ]
 
 export const disableAutoArgv = (ref: PrRef) => ['gh', 'pr', 'merge', ref.url, '--disable-auto']

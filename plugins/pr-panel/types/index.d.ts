@@ -21,6 +21,7 @@ export type Check = {
 }
 
 export type Review = {
+  id: string
   author: string
   state: string
   body: string
@@ -46,6 +47,8 @@ export type Thread = {
   url: string
   isOutdated: boolean
   replies: ThreadReply[]
+  /** Comments GitHub holds on the thread; more than `replies` + 1 when the page cut it. */
+  commentCount: number
 }
 
 /** What GitHub says the viewer may do on this PR. */
@@ -77,6 +80,8 @@ export type PrSnapshot = {
   reviews: Review[]
   comments: Comment[]
   threads: Thread[]
+  /** True when the PR has more review threads than one page fetches. */
+  hasMoreThreads: boolean
   repo: RepoSettings
   viewer: ViewerRights
 }

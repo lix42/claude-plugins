@@ -51,10 +51,12 @@ export const availableActions = (snapshot: PrSnapshot, method: MergeMethod | nul
   const actions: ActionId[] = []
   const isConflicting = snapshot.mergeable === 'CONFLICTING'
   if (snapshot.isDraft) actions.push('ready')
+  const canMergeNow = MERGEABLE_STATES.has(snapshot.mergeStateStatus)
   if (snapshot.autoMerge) actions.push('auto-disable')
-  else if (method && snapshot.viewer.canEnableAutoMerge && !snapshot.isDraft) actions.push('auto-enable')
+  // Auto-merge on a PR that could merge now would merge it at once, unconfirmed: offer Merge instead.
+  else if (method && snapshot.viewer.canEnableAutoMerge && !snapshot.isDraft && !canMergeNow) actions.push('auto-enable')
   if (method && !snapshot.isDraft && !isConflicting) {
-    if (MERGEABLE_STATES.has(snapshot.mergeStateStatus)) actions.push('merge')
+    if (canMergeNow) actions.push('merge')
     else if (snapshot.mergeStateStatus === 'BLOCKED' && snapshot.viewer.canMergeAsAdmin) actions.push('bypass')
   }
   if (failedRunIds(snapshot.checks).length > 0) actions.push('rerun')
@@ -87,9 +89,11 @@ export const mergeBlockers = (snapshot: PrSnapshot): string[] => {
   }
 }
 
-export const failedRunIds = (checks: readonly Check[]): string[] => [
-  ...new Set(checks.filter(c => c.state === 'fail' && c.runId).map(c => c.runId as string)),
-]
+/** Runs with a failed job and none still going: GitHub refuses to re-run an active run. */
+export const failedRunIds = (checks: readonly Check[]): string[] => {
+  const active = new Set(checks.filter(c => c.state === 'pending' && c.runId).map(c => c.runId))
+  return [...new Set(checks.filter(c => c.state === 'fail' && c.runId && !active.has(c.runId)).map(c => c.runId as string))]
+}
 
 const METHOD_LABEL: Record<MergeMethod, string> = { squash: 'squash', merge: 'merge commit', rebase: 'rebase' }
 export const methodLabel = (method: MergeMethod) => METHOD_LABEL[method]
@@ -132,7 +136,8 @@ export const diffSnapshots = (number: number, prev: PrSnapshot, next: PrSnapshot
   const before = countChecks(prev.checks)
   const after = countChecks(next.checks)
   const isSameHead = prev.headSha === next.headSha
-  if (after.total > 0 && after.pending === 0 && (before.pending > 0 || !isSameHead)) {
+  // Checks can go from not yet registered straight to finished between two fetches.
+  if (after.total > 0 && after.pending === 0 && (before.pending > 0 || before.total === 0 || !isSameHead)) {
     changes.push(
       after.fail > 0
         ? { text: `${at}: ${after.fail} check${after.fail === 1 ? '' : 's'} failed`, isImportant: true }
@@ -140,9 +145,9 @@ export const diffSnapshots = (number: number, prev: PrSnapshot, next: PrSnapshot
     )
   }
 
-  const seen = new Set(prev.reviews.map(r => `${r.author}:${r.state}`))
+  const seen = new Set(prev.reviews.map(r => r.id))
   for (const review of next.reviews) {
-    if (!seen.has(`${review.author}:${review.state}`) && review.state !== 'PENDING') {
+    if (!seen.has(review.id) && review.state !== 'PENDING') {
       changes.push({ text: `${at}: ${review.author} ${review.state.toLowerCase().replace('_', ' ')}`, isImportant: true })
     }
   }
@@ -150,8 +155,10 @@ export const diffSnapshots = (number: number, prev: PrSnapshot, next: PrSnapshot
   const fresh = next.comments.filter(c => !c.isBot).length - prev.comments.filter(c => !c.isBot).length
   if (fresh > 0) changes.push({ text: `${at}: ${fresh} new comment${fresh === 1 ? '' : 's'}`, isImportant: false })
 
-  if (next.threads.length > prev.threads.length) {
-    changes.push({ text: `${at}: ${next.threads.length} unresolved threads`, isImportant: false })
+  const known = new Set(prev.threads.map(t => t.id))
+  const added = next.threads.filter(t => !known.has(t.id)).length
+  if (added > 0) {
+    changes.push({ text: `${at}: ${added} new unresolved thread${added === 1 ? '' : 's'}`, isImportant: false })
   }
 
   if (!prev.autoMerge !== !next.autoMerge) {

@@ -29,6 +29,7 @@ test('fixThreadPrompt quotes the comment with its place', () => {
     url: 'https://t',
     isOutdated: false,
     replies: [{ author: 'me', body: 'on it' }],
+    commentCount: 2,
   })
   expect(text.includes('at src/a.ts:3:')).toBe(true)
   expect(text.includes('> two\n> lines')).toBe(true)

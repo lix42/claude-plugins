@@ -1,5 +1,5 @@
 import type { PrRef, PrSnapshot, TrackedPr } from '../types'
-import { FULL_REFRESH_MS, IDLE_POLL_MS, LINGER_MS, diffSnapshots, pollIntervalMs } from './derive'
+import { FAST_POLL_MS, FULL_REFRESH_MS, IDLE_POLL_MS, LINGER_MS, diffSnapshots, pollIntervalMs } from './derive'
 import { currentBranchPrArgv, probeArgv, probePaths, prViewArgv, runGh, threadsArgv } from './gh'
 import type { Io } from './io'
 import { extractPrRefs, parseHttpReply, parseSnapshot } from './parse'
@@ -28,10 +28,12 @@ export const track = async (io: Io, poller: Poller, refs: readonly PrRef[]) => {
   const known = new Set((await io.getPrs()).map(pr => pr.ref.url))
   const added = refs.filter(ref => !known.has(ref.url))
   if (added.length > 0) {
-    await io.updatePrs(list => [
-      ...list,
-      ...added.map((ref): TrackedPr => ({ ref, snapshot: null, error: null, fetchedAt: 0, endedAt: null })),
-    ])
+    // Checked again inside the update: another track of the same URL may have landed meanwhile.
+    await io.updatePrs(list => {
+      const present = new Set(list.map(pr => pr.ref.url))
+      const fresh = added.filter(ref => !present.has(ref.url))
+      return [...list, ...fresh.map((ref): TrackedPr => ({ ref, snapshot: null, error: null, fetchedAt: 0, endedAt: null }))]
+    })
     await io.updateSelected(() => added.at(-1)?.url ?? null)
   }
   void io.openPane()
@@ -72,15 +74,18 @@ const probeChanged = async (io: Io, poller: Poller, ref: PrRef, paths: readonly 
   return replies.some(status => status !== 304)
 }
 
-type Fetched = { snapshot: PrSnapshot; error?: undefined } | { error: string; snapshot?: undefined }
+/** A snapshot, with `warning` when the GraphQL half failed and stale threads/settings stand in. */
+type Fetched = { snapshot: PrSnapshot; warning: string | null; error?: undefined } | { error: string; snapshot?: undefined }
 
 const fullFetch = async (io: Io, ref: PrRef, prev: PrSnapshot | null): Promise<Fetched> => {
   const [view, graph] = await Promise.all([runGh(io, prViewArgv(ref)), runGh(io, threadsArgv(ref))])
   if (!view.isOk) return { error: view.error }
   try {
     const parsed = parseSnapshot(JSON.parse(view.stdout), graph.isOk ? JSON.parse(graph.stdout) : null)
-    // A failed GraphQL call keeps what we knew of threads and repo settings.
-    return { snapshot: graph.isOk || !prev ? parsed : { ...parsed, threads: prev.threads, repo: prev.repo, viewer: prev.viewer } }
+    if (graph.isOk) return { snapshot: parsed, warning: null }
+    // A failed GraphQL call keeps what we knew of threads and settings, and says so.
+    const kept = prev ? { ...parsed, threads: prev.threads, hasMoreThreads: prev.hasMoreThreads, repo: prev.repo, viewer: prev.viewer } : parsed
+    return { snapshot: kept, warning: `review threads and merge settings may be stale: ${graph.error.split('\n')[0]}` }
   } catch (error) {
     return { error: `could not read gh output: ${error instanceof Error ? error.message : String(error)}` }
   }
@@ -120,17 +125,20 @@ export const refresh = async (io: Io, poller: Poller, ref: PrRef, force = false)
     }
 
     const next = fetched.snapshot
+    const warning = fetched.warning
     if (next.headSha && next.headSha !== prev?.headSha) {
       // A new head has checks we hold no ETags for yet; take them now so the next probe can match.
       await probeChanged(io, poller, ref, probePaths(ref, next.headSha).slice(1))
     }
-    poller.lastFull.set(ref.url, now)
-    poller.due.set(ref.url, now + (pollIntervalMs(next) ?? Infinity))
+    // A partial fetch is not counted as full, so the next poll fetches again.
+    if (warning) poller.lastFull.delete(ref.url)
+    else poller.lastFull.set(ref.url, now)
+    poller.due.set(ref.url, now + (warning ? FAST_POLL_MS : (pollIntervalMs(next) ?? Infinity)))
     const isEnded = next.state !== 'OPEN'
     await patch(io, ref.url, pr => ({
       ...pr,
       snapshot: next,
-      error: null,
+      error: warning,
       fetchedAt: now,
       endedAt: isEnded ? (pr.endedAt ?? now) : null,
     }))
@@ -152,10 +160,10 @@ export const tick = async (io: Io, poller: Poller) => {
   }
 }
 
-/** Makes every open PR due now, as after a push. */
+/** Makes every PR that can still change due now, as after a push or a reopen; only a merge is final. */
 export const hurry = async (io: Io, poller: Poller) => {
   for (const pr of await io.getPrs()) {
-    if (pr.snapshot?.state !== 'MERGED' && pr.snapshot?.state !== 'CLOSED') poller.due.set(pr.ref.url, 0)
+    if (pr.snapshot?.state !== 'MERGED') poller.due.set(pr.ref.url, 0)
   }
   await tick(io, poller)
 }

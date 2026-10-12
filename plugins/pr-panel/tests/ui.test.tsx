@@ -50,6 +50,26 @@ test('/pr <url> tracks the PR and draws it in the pane and the band', async ($, 
     expect(await band.find({ type: 'Text', text: /#42 · ✓2 ✗1 …1 · 1 unresolved/ })).toBeDefined()
     await band.unmount()
   }
+
+  // Two PRs in a one-row band: one combined line.
+  await $.command.run({
+    command: 'pr',
+    args: 'https://github.com/acme/app/pull/43',
+    origin: { kind: 'composer' },
+    presentation: { isFullscreen: false, columns: 160 },
+  })
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const band = await $.ui.mount({
+      plugin: 'pr-panel',
+      surface,
+      component: 'AbovePrompt',
+      props: { ...BAND_PROPS, maxRows: 1 },
+      viewport: VIEWPORT,
+    })
+    expect(await band.find({ type: 'Text', text: /^#43 .* · \+1 more · \/pr$/ })).toBeDefined()
+    expect(await band.find({ type: 'Text', text: /^#42 / })).toBeUndefined()
+    await band.unmount()
+  }
 })
 
 test('a blocked PR offers a confirmed bypass, and a failed action shows its error in the pane', async ($, on) => {
@@ -93,7 +113,7 @@ test('a blocked PR offers a confirmed bypass, and a failed action shows its erro
 
   await pane.press({ key: 'action-bypass' })
   await pane.press({ key: 'confirm' })
-  expect(merges).toEqual([['gh', 'pr', 'merge', REF.url, '--squash', '--admin']])
+  expect(merges).toEqual([['gh', 'pr', 'merge', REF.url, '--squash', '--admin', '--match-head-commit', 'abc123']])
   expect(
     await pane.find({ type: 'Text', text: /#42 Bypass rules and squash and merge failed: Pull request acme\/app#42 is not mergeable/ }),
   ).toBeDefined()

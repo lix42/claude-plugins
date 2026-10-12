@@ -2,7 +2,7 @@ import { expect, test } from 'claude-code/testing'
 
 import type { Io } from '../hooks/io'
 import { LINGER_MS } from '../hooks/derive'
-import { createPoller, refresh, tick, track } from '../hooks/sync'
+import { createPoller, hurry, refresh, tick, track } from '../hooks/sync'
 import type { TrackedPr } from '../types'
 import { GRAPH, REF, VIEW } from './fixtures'
 
@@ -99,4 +99,35 @@ test('a merged PR stays on screen for LINGER_MS, then is untracked and the pane 
   await tick(fake.io, poller)
   expect(fake.list()).toEqual([])
   expect(fake.closes()).toBe(1)
+})
+
+test('overlapping tracks of one PR add it once', async () => {
+  const fake = fakeIo(argv => (argv.includes('-i') ? 'HTTP/2.0 200 OK\n\n{}' : JSON.stringify(isFull(argv) ? VIEW : GRAPH)))
+  const poller = createPoller()
+  await Promise.all([track(fake.io, poller, [REF]), track(fake.io, poller, [REF])])
+  expect(fake.list().length).toBe(1)
+})
+
+test('a failed GraphQL fetch is shown and retried, not taken as a full refresh', async () => {
+  const fake = fakeIo(argv => (argv.includes('-i') ? 'HTTP/2.0 200 OK\n\n{}' : JSON.stringify(VIEW)))
+  const run = fake.io.run
+  fake.io.run = async (argv, t) =>
+    argv[2] === 'graphql' ? { exitCode: 1, stdout: '', stderr: 'HTTP 502: Bad Gateway' } : run(argv, t)
+  const poller = createPoller()
+  await track(fake.io, poller, [REF])
+  expect(fake.list()[0]?.error).toBe('review threads and merge settings may be stale: HTTP 502: Bad Gateway')
+  expect(poller.lastFull.has(REF.url)).toBe(false)
+})
+
+test('hurry refetches a closed PR, so a reopen shows', async () => {
+  let view: Record<string, unknown> = { ...VIEW, state: 'CLOSED' }
+  const fake = fakeIo(argv => (argv.includes('-i') ? 'HTTP/2.0 200 OK\n\n{}' : JSON.stringify(isFull(argv) ? view : GRAPH)))
+  const poller = createPoller()
+  await track(fake.io, poller, [REF])
+  expect(poller.due.get(REF.url)).toBe(Infinity)
+
+  view = VIEW
+  await hurry(fake.io, poller)
+  expect(fake.list()[0]?.snapshot?.state).toBe('OPEN')
+  expect(fake.list()[0]?.endedAt).toBe(null)
 })
