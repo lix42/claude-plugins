@@ -1,7 +1,7 @@
 {
   "name": "tasks",
-  "description": "Plan and track development work as a docs/TASKS.md index plus per-task files, with a dependency graph that tells you which tasks are ready to work on next \u2014 and optional epics that shard large plans by subsystem",
-  "version": "0.6.0",
+  "description": "Plan and track development work as per-task files with frontmatter status and dependencies, queried and updated by a bundled CLI that generates docs/TASKS.md, with optional epics for large plans",
+  "version": "0.7.0",
   "author": {
     "name": "lix42"
   }

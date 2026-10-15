@@ -1,16 +1,56 @@
 # Per-task file format
 
-Each task gets one file, and its path matches the id used in `TASKS.md`:
+Each task is one file, and its path is its id:
 
-- **Flat mode** — `docs/tasks/<task-name>.md`, id `<task-name>`.
-- **Epic mode** — `docs/tasks/<epic>/<task-name>.md`, id `<epic>/<task-name>`.
+- **Flat mode** — `docs/tasks/<name>.md`, id `<name>`.
+- **Epic mode** — `docs/tasks/<epic>/<name>.md`, id `<epic>/<name>`.
 
-Both are kebab-case. The file expands the task enough that someone can implement
-it without re-asking what it's for — while leaving the actual implementation to
-the implementer. The file's content is identical in both modes; only its location
-and the relative links in its Dependencies section differ.
+Both parts are kebab-case. Files starting with `_` (`_header.md`, `_epic.md`) are not
+tasks.
 
-## Structure
+The file opens with **frontmatter** — the task's state, read and written by the
+`tasks` CLI — followed by the task's **spec**: enough that someone can implement it
+without re-asking what it's for, while leaving the implementation to the
+implementer.
+
+## Frontmatter
+
+```markdown
+---
+title: Expression parser and evaluator
+status: todo
+deps: [tui-skeleton]
+related: [app-state]
+priority: low
+tags: [post-mvp]
+summary: evaluate "2+3*4" to 14; the pure core with no UI
+done: 2026-06-13 #12
+closed_into: app-state
+---
+```
+
+| Key | Required | Meaning |
+|---|---|---|
+| `title` | yes | Human title; the index links it. |
+| `status` | yes | `todo`, `doing`, `done`, or `closed` (won't be done: superseded, folded into another task, or moot — kept as decision history). |
+| `deps` | yes (may be `[]`) | Hard dependencies, by id. The task is ready only once each is `done` or `closed`. |
+| `related` | no | Soft links: shown, never gate readiness. |
+| `priority` | no | `low` (ranked last by `tasks ready`) or `blocked` (held out of it, e.g. waiting on a decision or an outside party). Absent means normal. |
+| `tags` | no | Free labels for `tasks list --tag`. |
+| `summary` | no | One line for the index. Not a status narrative — that goes in the progress log. |
+| `done` | no | Completion note, typically a date and PR. |
+| `closed_into` | no | For a closed task, the task that absorbed it. |
+
+The format is a small subset of YAML: `key: value` and inline lists `[a, b]`.
+Quote a value with double quotes when it starts with a YAML indicator (`` ` ``, `[`,
+`"`, `*`…) or contains `: ` or ` #`; the CLI does this itself when it writes.
+Unknown keys are an error, so a typo can't silently do nothing.
+
+Prefer `tasks set` to editing frontmatter by hand: it validates ids, refuses
+cycles, keeps the progress log's status mirror in step, and re-renders `TASKS.md`.
+If you do edit by hand, run `tasks render` and `tasks check` after.
+
+## Body
 
 ```markdown
 # <Task Title>
@@ -18,60 +58,47 @@ and the relative links in its Dependencies section differ.
 ## Goal
 
 <What this task accomplishes and why, in 1–3 sentences. State the outcome, not
-the steps. If it helps, name the inputs and outputs.>
+the steps.>
 
 ## Design
 
-<The intended approach: the shape of the solution, key types/functions/modules,
-file locations, data flow, important decisions. Code sketches are welcome — they
-anchor the design — but keep them illustrative, not a full implementation.>
+<The intended approach: the shape of the solution, key types/modules, important
+decisions; what is known vs still open. Sketches welcome, not a full
+implementation.>
 
 ## Implementation Suggestion
 
-<Optional. Concrete hints that save the implementer time: a step order, helper
-functions, gotchas, edge cases to watch. Omit this section if the Design already
-makes the path obvious.>
+<Optional. Step order, helpers, gotchas, edge cases.>
 
 ## How to Verify
 
-<How to know it works. Prefer concrete, runnable checks: the test command,
-specific test cases (input → expected output), or manual steps to observe. This
-is the task's definition of done.>
-
-## Dependencies
-
-<Tasks that must be done first, as links. Mirror the canonical list in TASKS.md.
-Write "None — ..." with a short reason when there are no dependencies.>
-
-- [Other task title](other-task.md)
+<The definition of done: concrete, runnable checks.>
 ```
 
-## Notes
-
-- **Goal vs Design vs Verify** map to *what*, *how*, and *how we'll know*. Keeping
-  them separate makes a task skimmable and keeps "done" objective.
-- The **Dependencies** section mirrors `TASKS.md`'s canonical dependency list. If
-  they ever disagree, `TASKS.md` wins — fix the mismatch. Links are relative from
-  this file:
-  - Flat mode: `[Diff computation](diff-computation.md)`.
-  - Epic mode, same epic: `[Working space](working-space.md)`.
-  - Epic mode, another epic: `[Shared types](../core/types.md)`.
-
-  Moving a task between epics changes the hop count in **both** directions — its
-  own links and every link pointing at it. Fix both.
-- This file is the task's **spec** (what to build and how it's meant to work), not
-  its execution log. The running account of how the work actually went — decisions,
-  what worked, what didn't — goes in the progress log (`docs/progress.md` in flat
-  mode, `docs/progress/<epic>.md` in epic mode; see `progress-md-format.md`), one
-  section per task. Keep this file about intent.
-- Optionally record completion inline when a task is marked done, e.g. a short
-  `**Done:** <date / PR / note>` line under the title, so the file reflects state
-  too. The checkbox in `TASKS.md` remains the authoritative status.
+- **Goal vs Design vs Verify** map to *what*, *how*, and *how we'll know*; keeping
+  them apart keeps "done" objective.
+- **No status in the body.** The frontmatter holds state; the story of the work
+  goes in the progress log (`progress-md-format.md`). The file is the task's
+  intent.
+- **A `## Dependencies` section is optional** — prose on *why* each dependency
+  exists, when that helps. The frontmatter is the record. If the section exists,
+  `tasks set … deps+=x` / `deps-=x` adds or removes its link lines, and
+  `tasks check` warns when an open task's section names a task its frontmatter
+  doesn't (or the reverse). Links are relative to the file: a same-epic task is
+  `history.md`, another epic's is `../eval/parser.md`. `tasks mv` and `tasks group`
+  fix them when files move.
 
 ## Worked example
 
 ```markdown
-# Expression Parser and Evaluator
+---
+title: Expression parser and evaluator
+status: done
+deps: []
+summary: evaluate arithmetic strings; the pure core
+done: 2026-06-13 #3
+---
+# Expression parser and evaluator
 
 ## Goal
 
@@ -86,46 +113,13 @@ Recursive-descent grammar:
 expr   = term (('+' | '-') term)*
 term   = factor (('*' | '/') factor)*
 factor = '-' factor | '(' expr ')' | number
-number = [0-9]+ ('.' [0-9]+)?
 ```
 
-Public API: `pub fn eval(input: &str) -> Result<f64, String>`. A private
-`Parser { chars, pos }` holds state; one method per grammar rule. Division by
-zero returns `Err("Division by zero")` so the UI can show it.
-
-## Implementation Suggestion
-
-- `peek()` / `advance()` cursor helpers; skip whitespace between tokens.
-- After parsing, assert the cursor reached end-of-input to catch trailing junk.
+Public API: `pub fn eval(input: &str) -> Result<f64, String>`. Division by zero
+returns `Err("Division by zero")` so the UI can show it.
 
 ## How to Verify
 
-`cargo test` passes, covering:
-- Precedence: `"2+3*4"` → `14.0`
-- Parentheses: `"(2+3)*4"` → `20.0`
-- Unary minus: `"-(3+2)"` → `-5.0`
-- Errors: `"1/0"`, `""`, `"2++3"` → `Err`
-
-## Dependencies
-
-None — standalone module with no dependencies on other tasks.
+`cargo test` passes, covering precedence (`"2+3*4"` → `14.0`), parentheses,
+unary minus, and errors (`"1/0"`, `""`, `"2++3"` → `Err`).
 ```
-
-## Dependencies in epic mode
-
-The only thing that changes is link depth, and getting it wrong is the most common
-breakage when tasks move. For `docs/tasks/app/state.md` — task id `app/state`,
-depending on `app/history` (same epic) and `eval/parser` plus `term/key-decode`
-(other epics):
-
-```markdown
-## Dependencies
-
-- [Expression history](history.md)
-- [Expression parser](../eval/parser.md)
-- [Key decoding and chords](../term/key-decode.md)
-```
-
-Same epic is a bare filename; another epic is `../<epic>/<task>.md`. There is never
-more than one `../`, because every task file sits exactly one level under
-`docs/tasks/`.

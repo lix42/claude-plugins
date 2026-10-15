@@ -7,10 +7,9 @@ plan.
 
 It complements the other two files rather than duplicating them:
 
-- `TASKS.md` — the plan and the **authoritative status** (the `[ ]`/`[~]`/`[x]`
-  checkboxes).
 - `tasks/**/<name>.md` — the **spec** for a task (goal, intended design, how to
-  verify).
+  verify), with its **authoritative status** in the frontmatter.
+- `TASKS.md` — the generated index of the plan.
 - the progress log — the **execution log**: what happened when the task was built.
 
 ## Where it lives
@@ -26,6 +25,21 @@ Per-epic files exist because a single log stops working at scale: a mature
 project's log runs to thousands of lines, and every agent starting any task pays
 to read all of it. Sharding by epic keeps each read to the part that's actually
 relevant, and keeps parallel epics out of each other's diffs.
+
+## Writing to it
+
+Add entries with the CLI rather than by editing:
+
+```sh
+tasks log <id> "what you did and how; a decision and why"
+printf '%s\n' "first line" "second line" | tasks log <id> -
+tasks log <id> --status doing "starting: the plan is …"
+```
+
+It finds the task's file and section (creating the section if it's missing),
+appends a dated entry at the end of it, and updates the `Updated` mirror;
+`tasks set <id> status=…` updates the `Status` mirror. It never rewrites an earlier
+entry. The `Epic summary` is the one part you edit by hand.
 
 ## What to read before starting a task
 
@@ -49,16 +63,15 @@ read everything, so it has to be honest — see below.
 # <Project> — Progress Log
 
 How each task is actually being carried out — what was done and how, key
-decisions, what works, what doesn't, and notes for dependent tasks. TASKS.md holds
-the authoritative status (the checkboxes); this file is the narrative beside it.
+decisions, what works, what doesn't, and notes for dependent tasks. Task status
+lives in each task file's frontmatter; this file is the narrative beside it.
 
-One `##` section per task, named by the kebab task name (matching TASKS.md and the
-task file). Read this file before starting a task; update your own section as you
-work. Append log entries — don't rewrite earlier ones.
+One `##` section per task, named by the kebab task name (matching the task file). Read this file
+before starting a task; update your own section as you work. Append log entries — don't rewrite earlier ones.
 
 ## <task-name>
 
-**Status:** not started | in progress | done   <!-- mirrors TASKS.md; TASKS.md wins -->
+**Status:** not started | in progress | done | closed   <!-- mirrors the frontmatter -->
 **Updated:** <YYYY-MM-DD>
 
 - <YYYY-MM-DD>: <what you did and how; a decision and why; what works / what
@@ -75,8 +88,8 @@ they live in and the summary above them are new.
 # <Project> — <epic> Progress Log
 
 Execution log for the `<epic>` epic: what was done and how, key decisions, what
-works, what doesn't. TASKS.md holds the authoritative status; this file is the
-narrative beside it.
+works, what doesn't. Task status lives in each task file's frontmatter; this file
+is the narrative beside it.
 
 One `##` section per task in this epic, named by the bare task name (the part
 after the `/`). Read this whole file before starting a task in this epic, and read
@@ -93,7 +106,7 @@ as understanding changes.>
 
 ## <task-name>
 
-**Status:** not started | in progress | done   <!-- mirrors TASKS.md; TASKS.md wins -->
+**Status:** not started | in progress | done | closed   <!-- mirrors the frontmatter -->
 **Updated:** <YYYY-MM-DD>
 
 - <YYYY-MM-DD>: <what you did and how; a decision and why; what works / what
@@ -109,12 +122,12 @@ Field rules:
   task's id changes — a migration, a move between epics — **the heading is
   rewritten to match while the log entries below it move untouched.** "Move it
   verbatim" always refers to the entries, never the heading.
-- **`Status`** is a convenience mirror of the TASKS.md checkbox so a reader
-  scanning the log sees state without cross-checking. If the two ever disagree,
-  **TASKS.md wins** — fix the mirror.
+- **`Status`** is a convenience mirror of the frontmatter `status` so a reader
+  scanning the log sees state without cross-checking; `tasks set` keeps it in
+  step. If the two ever disagree, **the frontmatter wins** — fix the mirror.
 - **`Updated`** is the date of the latest entry.
 - **Log entries** are dated, newest last, and append-only. Favor the *how* and the
-  *why* over the *what* (the what is already in TASKS.md / the task file): the
+  *why* over the *what* (the what is already in the task file): the
   approach taken, decisions and trade-offs, dead ends, what's verified working,
   known gaps.
 - **`Epic summary`** (epic mode) is the one part that is *not* append-only. Keep
@@ -147,8 +160,8 @@ Field rules:
 # Calc — Progress Log
 
 How each task is actually being carried out — what was done and how, key
-decisions, what works, what doesn't, and notes for dependent tasks. TASKS.md holds
-the authoritative status; this file is the narrative beside it.
+decisions, what works, what doesn't, and notes for dependent tasks. Task status
+lives in each task file's frontmatter; this file is the narrative beside it.
 
 One `##` section per task, named by the kebab task name. Read this before starting
 a task; update your own section as you work. Append entries — don't rewrite them.
@@ -186,8 +199,8 @@ a task; update your own section as you work. Append entries — don't rewrite th
 ```markdown
 # Calc — eval Progress Log
 
-Execution log for the `eval` epic. TASKS.md holds the authoritative status; this
-file is the narrative beside it.
+Execution log for the `eval` epic. Task status lives in each task file's
+frontmatter; this file is the narrative beside it.
 
 One `##` section per task in this epic, named by the bare task name. Read this
 whole file before starting an `eval` task; read other epics' `Epic summary` when

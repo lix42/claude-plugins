@@ -145,30 +145,51 @@ These are structured for use in behavioral interviews and promotion documents.
 
 ### tasks
 
-Plan a project into a `docs/TASKS.md` index plus one file per task under
-`docs/tasks/`, connected by a dependency graph — so you always know what's ready
-to work on next.
+Plan a project as one file per task under `docs/tasks/`, each opening with
+frontmatter that holds its status and dependencies — so you always know what's ready
+to work on next. A bundled, dependency-free CLI (`cli/tasks.ts`, run with Node
+22.18+) queries and updates the plan and generates `docs/TASKS.md`; agents call it
+instead of editing checkboxes.
 
 #### Layout it manages
 
 ```
 docs/
-  TASKS.md           # design summary + dependency graph + task checklist
-  tasks/<name>.md    # one file per task (goal, design, how to verify, deps)
+  TASKS.md           # generated index: header + dependency graph + task list
+  tasks/_header.md   # hand-written top of TASKS.md: intro and concise design
+  tasks/<name>.md    # one file per task: frontmatter, then goal/design/how to verify
   progress.md        # running execution log: how each task was carried out
-  design.md          # optional: full design spec if it outgrows TASKS.md
+  design.md          # optional: full design spec if it outgrows the header
 ```
 
-`TASKS.md` has three sections: a concise **Design**, a **Dependencies** graph
-(Mermaid diagram + a machine-readable list that's the source of truth for what's
-unblocked), and the **Tasks** checklist (`[ ]` todo · `[~]` in progress · `[x]`
-done).
+```markdown
+---
+title: Expression parser and evaluator
+status: todo            # todo | doing | done | closed
+deps: [tui-skeleton]    # hard dependencies: gate readiness
+summary: evaluate "2+3*4" to 14
+---
+```
 
-`progress.md` is the **execution log** beside the plan — one section per task
-recording *how* the work actually went: what was done, decisions made, what works
-and what doesn't, and notes for dependent tasks. The setup operation seeds it, and
-agents read it before starting a task and update their section as they work, so
+```sh
+tasks ready                         # what can start now, ranked by leverage
+tasks show parser                   # fields, deps with status, dependents
+tasks set parser status=done        # …and prints what just became ready
+tasks log parser "how it went"      # append a dated progress entry
+tasks new ui-grid --title "Grid" --deps parser
+tasks mv ui-grid ui/grid            # rename or move between epics, links included
+tasks check                         # cycles, dangling deps, stale index — CI-friendly
+```
+
+Every command takes `--json`. `progress.md` is the **execution log** beside the plan
+— one section per task recording *how* the work actually went: what was done,
+decisions made, what works and what doesn't, and notes for dependent tasks. Agents
+read it before starting a task and append to their own section as they work, so
 parallel work merges cleanly and each task builds on what the last one learned.
+
+Plans from earlier versions (checkboxes and a dependency list in `TASKS.md`) convert
+with `/tasks-migrate`, which reads the dependency list, "Depends …" prose, or the
+task files' own links, and reports anything it couldn't map.
 
 #### Epics, for plans that outgrow a flat list
 
@@ -179,7 +200,8 @@ shards by **epic**:
 
 ```
 docs/
-  TASKS.md                    # still one file: design + graph + tasks by epic
+  TASKS.md                    # still one generated file: header + epic rollup + tasks by epic
+  tasks/<epic>/_epic.md       # epic title, order, and scope
   tasks/<epic>/<name>.md      # task id is "<epic>/<name>"
   progress/<epic>.md          # one log per epic, opening with an Epic summary
   design.md                   # optional: full design spec, as in flat mode
@@ -196,19 +218,25 @@ tasks share no files and no context, which defeats the point.
 Dependencies stay task-level and canonical; epic status and the epic rollup diagram
 are derived from them, never authored separately. Small projects stay flat, and
 both layouts are fully supported — `/tasks-group` promotes a flat plan to epics
-once it has genuinely grown. (There's no reverse: to reshuffle a plan that's
-already epic mode, move tasks between epics one at a time with `/tasks-update`.)
+once it has genuinely grown (`tasks group` moves every file, link and log section in
+one step). There's no reverse: to reshuffle a plan that's already epic mode, move
+tasks one at a time with `tasks mv`.
 
 #### Commands
 
 | Command | Description |
 |---------|-------------|
-| `/tasks-setup [requirement]` | Interview, agree on a design, split into tasks, and (after approval) write `TASKS.md` + task files |
+| `/tasks-setup [requirement]` | Interview, agree on a design, split into tasks, and (after approval) create the task files |
 | `/tasks-next [epic]` | List tasks whose dependencies are all done, with priority and parallelism suggestions |
 | `/tasks-update [change]` | Add/remove/split/move/change tasks and keep the dependency graph consistent |
 | `/tasks-done [task]` | Mark a task complete and show what it just unblocked |
 | `/tasks-group [hint]` | Promote an oversized flat task list to structural epics and split the progress log per epic |
+| `/tasks-migrate` | Convert a plan from the checkbox format to frontmatter task files |
 | `/tasks:start-task <task>` | Create a branch + sibling worktree for the task from the remote default branch, switch into it, then explain the task and agree on a plan |
+
+Developing the CLI: `node --test 'plugins/tasks/skills/task-tracking/cli/test/*.test.ts'`
+runs the tests and `tsc -p plugins/tasks/skills/task-tracking/cli` typechecks it; neither
+installs anything.
 
 `/tasks:start-task` checks for an existing branch (local or remote), folder, or
 worktree before creating anything — including a worktree whose folder was deleted

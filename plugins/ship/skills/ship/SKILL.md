@@ -112,8 +112,13 @@ gates after changes.
 When `tasks.tasksFile` is set and the current change clearly implements one task:
 
 - Invoke the exact `skills.taskCompletion` helper when set. For
-  `tasks:task-tracking`, request its **Mark a task done** operation.
-- Otherwise update the task checkbox in `docs/TASKS.md` and close out the matching
+  `tasks:task-tracking`, request its **Mark a task started or done** operation.
+- Otherwise, if the task files carry frontmatter (they open with `---` and a
+  `status:` line), the plan belongs to the `tasks` CLI: its `TASKS.md` is generated,
+  and editing either by hand leaves the index stale. **Skip task completion** and
+  tell the user to run `/tasks:tasks-done` (or the CLI's `tasks set <id>
+  status=done`).
+- Otherwise (an older plan with checkboxes in `TASKS.md`) update the task checkbox in `docs/TASKS.md` and close out the matching
   progress section directly, including the landed approach, verification, and notes
   for dependent tasks. Pick the progress file from the **layout**, not from the
   shape of the task id:
