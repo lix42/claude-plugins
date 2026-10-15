@@ -1,7 +1,7 @@
 ---
 name: start-task
 description: >-
-  Start work on a task from docs/TASKS.md in its own git worktree: create a
+  Start work on a task from the docs/tasks plan in its own git worktree: create a
   branch named after the task from the remote default branch, add a sibling
   worktree for it, switch the session into it, then read the task and its
   context, explain it in plain English, draft a plan, and interview the user
@@ -28,14 +28,14 @@ user. When something already exists, stop and ask.
 
 The task is in `$ARGUMENTS`. If empty, ask which task.
 
-Find the project root (`git rev-parse --show-toplevel`) and read `docs/TASKS.md`.
-Detect flat vs epic mode as the task-tracking skill describes
-(`${CLAUDE_PLUGIN_ROOT}/skills/task-tracking/SKILL.md`, "Detect the mode first").
-Fuzzy-match the argument against the task ids; if several match, ask. If the
-local `docs/TASKS.md` is missing or doesn't list it, check the remote copy
-(`git show origin/<default>:docs/TASKS.md`, after the fetch in step 2) — the
-local checkout may be stale. If it isn't found anywhere, say so and ask whether
-to continue with the name as given (worktree only, no task brief) or stop.
+Resolve it with the task-tracking CLI
+(`node ${CLAUDE_PLUGIN_ROOT}/skills/task-tracking/cli/tasks.ts show <arg> --json`,
+or `cli/tasks.ts` in the task-tracking skill's directory where that variable isn't
+set): it accepts a unique name or substring and reports ambiguity — if several
+match, ask. If the local plan doesn't have it, check the remote copy after the
+fetch in step 2 (`git show origin/<default>:docs/tasks/<id>.md`) — the local
+checkout may be stale. If it isn't found anywhere, say so and ask whether to
+continue with the name as given (worktree only, no task brief) or stop.
 
 Derive the names from the task id:
 
@@ -49,7 +49,8 @@ sibling of it. Normalize the folder with `pwd -P` semantics (resolve symlinks,
 e.g. `/tmp` → `/private/tmp` on macOS) before comparing it to anything git
 reports.
 
-If the task is already `[x]` done, mention it and ask before continuing.
+If the task's status is already `done` or `closed`, mention it and ask before
+continuing.
 
 ## 2. Preflight — look before creating anything
 
@@ -155,10 +156,10 @@ Everything below is read **from the worktree**, not the original checkout.
 
 Read, following the task-tracking skill's reading rules:
 
-- The task file — `docs/tasks/<id>.md`.
-- In `docs/TASKS.md`: the Design section and the task's canonical
-  dependencies. Note any dependency not yet `[x]` — starting a blocked task is
+- The task file — `docs/tasks/<id>.md` — and `tasks show <id>`: its deps with
+  their status. Note any dependency not yet `done` — starting a blocked task is
   allowed, but call it out.
+- The design in `docs/tasks/_header.md` (the top of `TASKS.md`).
 - The task files of its direct dependencies (enough to know the interfaces it
   builds on).
 - The progress log: flat mode, all of `docs/progress.md`; epic mode, the whole
@@ -183,5 +184,5 @@ Then reply with:
 Revise the plan with the answers. **Do not start implementing** until the user
 agrees to the plan.
 
-Do not edit `docs/TASKS.md` or the progress log here — task status stays as it
-is.
+Do not change the task's status or write to the progress log here — that happens
+when work actually starts (`tasks set <id> status=doing`).

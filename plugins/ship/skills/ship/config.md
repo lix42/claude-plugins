@@ -187,7 +187,8 @@ Missing helpers never block shipping:
   Self-review is the fallback for a missing reviewer, never a substitute for an
   available one.
 - `review.codexCommand`: skip the Codex pass; the remaining reviewer is enough.
-- `taskCompletion`: update `docs/TASKS.md` and the matching progress section
+- `taskCompletion`: for a plan whose task files carry frontmatter, skip and point
+  the user at `/tasks:tasks-done`; for an older checkbox plan, update `docs/TASKS.md` and the matching progress section
   directly — `docs/progress.md`, or `docs/progress/<epic>.md` for epic-grouped
   plans, refreshing that file's `Epic summary` when the change affects other epics.
   Choose by inspecting the layout, and skip completion entirely if it is neither
