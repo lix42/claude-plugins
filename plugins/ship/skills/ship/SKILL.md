@@ -34,27 +34,30 @@ If the request is `/ship-config`, `$ship refresh config`, or otherwise asks only
 to refresh configuration, do not ship anything:
 
 1. Read `config.md` bundled beside this file.
-2. Identify the current host and read only that host's cache.
+2. Identify the current host, locate its cache as `config.md` describes (in the
+   repository's main worktree), and read only that cache.
 3. Re-detect every field using the documented procedure.
 4. Compare fields other than `detectedAt` and report `old → new` values. Treat
    any older or unknown schema version and invalid JSON as a full re-detection.
-5. Write the version-6 result to the current host cache and stop.
+5. Write the version-7 result to that same cache path and stop.
 
 ## Assess the change
 
 Read `config.md` before using cached values.
 
 1. Identify the runtime as Claude Code or Codex and select only its cache:
-   `.claude/ship.local.json` or `.codex/ship.local.json` respectively.
-2. If that cache contains valid schema version 6 for the current host, use it.
+   `.claude/ship.local.json` or `.codex/ship.local.json` respectively, inside the
+   repository's main worktree. `config.md` gives the exact lookup.
+2. If that cache contains valid schema version 7 for the current host, use it.
    If it is missing, invalid, an older version, another version, or records
    another host, run complete detection and overwrite only the selected cache.
    Never read the other host's cache.
 3. On first detection, tell the user which cache was written and how to refresh
    it: `/ship-config` in Claude Code or `$ship refresh config` in Codex.
-4. Read live state that must never be cached: `git status`, the diff against the
-   base branch, the current branch, worktree state, and which tracked task this
-   session's change implements.
+4. Read live state that must never be cached: the **live project facts** in
+   `config.md` (`qualityGates` and `tasks.tasksFile`, from the current worktree),
+   `git status`, the diff against the base branch, the current branch, worktree
+   state, and which tracked task this session's change implements.
 
 Give the user a one-line execution summary, then run the steps in order. If a
 cached command or helper is no longer valid, fix the route for this run and tell
@@ -62,7 +65,7 @@ the user to refresh the config afterward.
 
 ## 1. Pass quality gates
 
-Run every non-null command under `qualityGates`, using the cached exact command.
+Run every non-null command under `qualityGates`, using the exact command just read.
 Run type-check, tests, build, and lint when present. A successful gate already run
 against identical code in this session need not be repeated.
 
@@ -72,40 +75,10 @@ workflow, rerun every gate that could be affected.
 ## 2. Review the local diff
 
 This step reviews the working change and runs before any commit or pull request.
-A missing pull request is never a reason to skip a configured reviewer.
-
-Run every applicable reviewer, in parallel when more than one applies. Start both
-before collecting either: launch `review.codexCommand` as a background Bash job,
-start the local reviewer, then collect both results.
-
-- **Local review.** In Claude Code, launch this plugin's bundled
-  `ship:diff-reviewer` agent with the Task tool. It ships with ship, so it needs
-  no detection and is always available. In Codex, invoke the exact
-  `skills.localReview` skill instead when one is recorded.
-- **Scope.** Tell the reviewer what to review: the working tree while the change
-  is uncommitted, or the diff against `environment.defaultBranch` once it is
-  committed. Never downgrade a reviewer to a self-review because no pull request
-  exists.
-- **Never route local review through `/code-review`.** Claude Code's built-in
-  review command is `disable-model-invocation` — user-invocable only — so ship
-  cannot call it, and `/code-review ultra` is a billed cloud review reserved for
-  the user. `code-review:code-review` is also wrong: that marketplace plugin
-  reviews an open GitHub pull request and comments on it.
-- **`review.codexCommand`.** When set, run it verbatim with Bash for an
-  independent Codex review of the same local change. This is the programmatic
-  form of `/codex:review`, which is likewise user-invocable only. Append
-  `--base <environment.defaultBranch>` when the change is already committed
-  rather than sitting in the working tree. Treat a Codex failure — missing CLI,
-  auth error, non-zero exit — as a skipped reviewer: report it and continue with
-  the rest of the review.
-
-Critically self-review the whole diff for correctness, edge cases, security,
-error handling, and project conventions only when no reviewer is available at
-all — in Codex with no review skill installed, and no Codex command.
-
-Investigate every finding from every reviewer, deduplicating overlap. Fix
-warranted issues and state why any finding is declined. Rerun affected quality
-gates after changes.
+Follow `local-review.md` bundled beside this file, scoped to the working tree
+while the change is uncommitted, or to the diff against
+`environment.defaultBranch` (pass it as the Codex command's `--base`) once it is
+committed.
 
 ## 3. Complete a tracked task
 
@@ -162,27 +135,16 @@ helper returned a pull-request URL.
 
 ## 5. Drive the pull request to green
 
-Loop until checks pass, the branch is current, and actionable review feedback is
-handled:
+Hand the pull request just published to the `drive-pr` skill bundled with this
+plugin — `ship:drive-pr` through the Skill tool in Claude Code, `$drive-pr` in
+Codex — with its number and `--mark-ready`, since a draft from step 4 is this
+workflow's intermediate state rather than the user's choice. It watches checks,
+rebases when the branch falls behind, reviews every fix with `local-review.md`
+before pushing it, and replies to and resolves review threads. If the skill
+cannot be invoked, read `../drive-pr/SKILL.md` relative to this file and follow
+it directly.
 
-1. **Checks.** Watch with `gh pr checks --watch` or inspect
-   `statusCheckRollup`. If checks fail and `skills.ciRepair` is set, invoke that
-   exact helper. Otherwise inspect failed logs with `gh`, reproduce locally, fix,
-   rerun local gates, commit, push, and watch again.
-2. **Behind base.** If merge state is `BEHIND`, fetch and rebase onto the remote
-   default branch, rerun all quality gates, then push with `--force-with-lease`.
-3. **Review feedback.** If `skills.reviewFeedback` is set, invoke that exact
-   helper to inspect unresolved threads and implement selected fixes. Otherwise
-   use `gh pr view --comments`, `gh api`, or GraphQL as needed to inspect threads.
-   Evaluate comments rather than accepting them blindly; make warranted changes,
-   reply with what changed or why it did not, and resolve addressed threads when
-   appropriate.
-4. **Repeat.** Any pushed change restarts check and feedback inspection. Continue
-   until green or until a genuine external blocker requires the user.
-
-If the PR is a draft, mark it ready for review only after all checks pass and all
-known actionable feedback is addressed (`gh pr ready` is the direct fallback).
-Never merge it.
+It reuses the config already loaded here. Never merge the pull request.
 
 ## 6. Integrate linearly when no GitHub remote exists
 
@@ -202,7 +164,7 @@ Report the resulting default-branch commit.
 ## Finish
 
 Summarize the gates that passed, review outcome, task updates, and publication
-result. For GitHub, include the PR URL, green status,
-and whether it was marked ready for review; remind the user that the final merge
-remains theirs. For no-remote integration, include the resulting commit. Call out
-anything skipped and why.
+result. For GitHub, include the PR URL, green status, the review threads replied
+to and resolved, and whether it was marked ready for review; remind the user that
+the final merge remains theirs. For no-remote integration, include the resulting
+commit. Call out anything skipped and why.

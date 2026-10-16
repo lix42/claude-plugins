@@ -1,14 +1,16 @@
 # Ship config
 
-The ship workflow caches project facts that are stable across runs: host,
-GitHub remote and default branch, quality-gate commands, task-list presence, the exact names of installed helper skills, and
-the optional Codex review command. Both first-run detection and an explicit
-config refresh follow this file.
+The ship workflow caches repository facts that are stable across runs and
+branches: host, GitHub remote and default branch, the exact names of installed
+helper skills, and the optional Codex review command. Facts that can differ from
+one branch to the next — quality-gate commands and task-list presence — are never
+cached; **Live project facts** below re-reads them every run. Both first-run
+detection and an explicit config refresh follow this file.
 
 ## Host and location
 
 Identify the host from the current runtime, not from files on disk or installed
-skills:
+skills. The host picks the cache's path inside a worktree:
 
 - Claude Code: `.claude/ship.local.json`
 - Codex: `.codex/ship.local.json`
@@ -16,31 +18,37 @@ skills:
 Read and write only the current host's cache. Never consult, copy, migrate, or
 delete the other host's cache. Create the selected parent directory when needed.
 
-Schema version 6 is the only recognized version. If the selected cache is absent,
-invalid JSON, or has any other `version` (including versions 1 through 5), ignore
+The cache lives in the repository's **main worktree**, so every worktree of a
+repository shares one cache, and its location does not move as branches are
+checked out. Resolve it live on every run:
+
+1. In `git worktree list --porcelain`, the first entry is the main worktree. Its
+   `worktree` path is the cache's root — even when that is the current worktree.
+2. When that entry is marked `bare` (a bare repository has no working files),
+   the root is the current worktree (`git rev-parse --show-toplevel`).
+
+The cache path is `<root>/.claude/ship.local.json` (or `<root>/.codex/…`). Use
+that one path for reading and writing; never fall back to a cache in the current
+worktree when the root is elsewhere. If the current worktree, being a different
+one, holds its own copy of the host's cache — left from before caches were
+shared — ignore it and tell the user it is stale and safe to delete.
+
+Schema version 7 is the only recognized version. If the selected cache is absent,
+invalid JSON, or has any other `version` (including versions 1 through 6), ignore
 all cached values and run the complete detection procedure. That is also the whole
-migration story: fresh detection followed by a version-6 write, never
+migration story: fresh detection followed by a version-7 write, never
 field-by-field conversion.
 
 ## Schema
 
 ```json
 {
-  "version": 6,
+  "version": 7,
   "detectedAt": "2026-07-22T10:30:00Z",
   "host": "codex",
   "environment": {
     "hasGitHubRemote": true,
     "defaultBranch": "main"
-  },
-  "qualityGates": {
-    "typecheck": "npm run typecheck",
-    "test": "npm run test:run",
-    "build": "npm run build",
-    "lint": "npm run lint"
-  },
-  "tasks": {
-    "tasksFile": "docs/TASKS.md"
   },
   "skills": {
     "localReview": "acme:review-current-diff",
@@ -71,15 +79,12 @@ second, independent reviewer alongside it:
 
 Field rules:
 
-- `version`: always `6`.
+- `version`: always `7`.
 - `detectedAt`: ISO-8601 UTC timestamp for the completed detection.
 - `host`: exactly `claude` or `codex`; it must match the selected cache path.
 - `environment.hasGitHubRemote`: true only when a configured remote points to
   GitHub.
 - `environment.defaultBranch`: detected default branch name.
-- `qualityGates`: exact commands for `typecheck`, `test`, `build`, and `lint`, or
-  `null` when the project has no corresponding gate.
-- `tasks.tasksFile`: `docs/TASKS.md` when it exists, otherwise `null`.
 - `skills`: exact installed skill names selected for each role, otherwise `null`.
   Skill dependencies are optional; a null value always has a built-in fallback.
 - `skills.localReview`: always `null` in Claude Code — local review is the
@@ -88,6 +93,23 @@ Field rules:
 - `review.codexCommand`: the exact shell command that runs a Codex review of the
   local change, or `null`. It runs alongside the local reviewer, never instead
   of it.
+
+## Live project facts
+
+Read these from the **current** worktree on every run, before the first step
+that needs them, and never write them to the cache: they describe the branch
+being shipped, and another worktree's branch can differ. The workflows refer to
+them by these names.
+
+- **`qualityGates`** — exact commands for `typecheck`, `test`, `build`, and
+  `lint`, or `null` when the project has no corresponding gate. Read project
+  configuration such as `package.json`, a `Makefile`, and the host's applicable
+  instruction file (`CLAUDE.md` in Claude Code, the nearest `AGENTS.md` in
+  Codex). Record exact runnable commands, preferring single-run or CI variants
+  (`test:run` over a watch-mode `test`). Account for commands that subsume other
+  gates, but record a gate's own command when one exists.
+- **`tasks.tasksFile`** — `docs/TASKS.md` when it exists in the current
+  worktree, otherwise `null`.
 
 ## Detection procedure
 
@@ -102,16 +124,7 @@ finishes. Do not narrate every probe.
    the remote HEAD branch, then the repository's evident local default branch.
    Use the current branch only as a last resort.
 
-3. **Quality gates.** Read project configuration such as `package.json`, a
-   `Makefile`, and the host's applicable instruction file (`CLAUDE.md` in Claude
-   Code, the nearest `AGENTS.md` in Codex). Record exact runnable
-   commands, preferring single-run or CI variants (`test:run` over a watch-mode
-   `test`). Account for commands that subsume other gates, but record a gate's own
-   command when one exists. Use `null` when no gate exists.
-
-4. **Task list.** Record `docs/TASKS.md` if it exists, otherwise `null`.
-
-5. **Optional helper skills.** Inspect the live available-skills list supplied to
+3. **Optional helper skills.** Inspect the live available-skills list supplied to
    this session. A helper is installed only when its exact skill name appears in
    that list; do not infer availability from plugin files, commands, caches, or
    documentation.
@@ -154,7 +167,7 @@ finishes. Do not narrate every probe.
    for an existing PR opportunistically — so the “pr” in its name is never a
    reason to reject it or to skip it later because no pull request exists.
 
-6. **Codex review command.** In Codex, set `review.codexCommand` to `null`; a
+4. **Codex review command.** In Codex, set `review.codexCommand` to `null`; a
    second Codex review adds nothing there. In Claude Code, set it when the Codex
    plugin's review runtime is usable, so that `/codex:review` coverage runs in
    parallel with `ship:diff-reviewer`. The slash command itself declares
@@ -168,8 +181,9 @@ finishes. Do not narrate every probe.
      Otherwise record `null`. Do not run `codex-companion.mjs setup` during
      detection; it writes Codex plugin configuration.
 
-7. **Write once.** Write valid, formatted JSON to the selected cache with version
-   6 and a fresh timestamp. On an explicit refresh, compare all fields except
+5. **Write once.** Write valid, formatted JSON to the selected cache — at the
+   root resolved under **Host and location** — with version 7 and a fresh
+   timestamp. On an explicit refresh, compare all fields except
    `detectedAt` with the prior selected-host cache and report only changed values.
    An old or invalid schema is reported as a full re-detection, not as a partial
    diff.
@@ -194,7 +208,9 @@ Missing helpers never block shipping:
   Choose by inspecting the layout, and skip completion entirely if it is neither
   coherently flat nor coherently epic.
 - `publishing`: use `git` and `gh` directly.
-- `ciRepair`: inspect GitHub checks and logs with `gh`, reproduce locally, fix,
-  commit, and push.
-- `reviewFeedback`: inspect review threads with `gh`, address warranted feedback,
-  reply, and resolve threads when appropriate.
+- `ciRepair`: inspect GitHub checks and logs with `gh`, reproduce locally, and
+  fix; then review, commit, and push the fix as the `drive-pr` skill's **Review
+  every fix before it is pushed** describes.
+- `reviewFeedback`: inspect review threads with `gh` and address warranted
+  feedback, as the `drive-pr` skill's **Address review feedback** describes —
+  including replying to and resolving every handled thread.

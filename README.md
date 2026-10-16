@@ -180,26 +180,44 @@ optional helper skills installed in the current session:
    installed. In Codex it uses an installed local-diff review skill, falling back
    to a critical self-review when there is none. Acts on the findings either way.
 3. **Task** — if `docs/TASKS.md` exists and the session worked a task, marks it
-   `[x]` using the host's task helper when available, with a direct-file fallback.
+   done with the host's task helper (`/tasks:tasks-done` in Claude Code). Without
+   one, a frontmatter plan is left for you to run `/tasks:tasks-done`, since its
+   `TASKS.md` is generated; an older checkbox plan is updated directly.
 4. **PR** — if there's a GitHub remote: branch if needed, then commit + push +
    open a PR using the host's publishing helper when available, else `git`/`gh`.
-5. **Drive to green** — polls PR checks, fixes failures and pushes, rebases onto
-   the default branch when the PR falls behind, and reads/answers review comments.
-   Stops once green — the final merge is left to you.
-6. **No remote** — if there's no GitHub remote, rebases onto `main` and
-   fast-forward merges to keep history linear (safe for parallel worktrees).
+5. **Drive to green** — hands the PR to `drive-pr` (below): polls checks, fixes
+   failures, rebases when the PR falls behind, and addresses review comments.
+   Every fix gets the same local review as step 2 before it is pushed, and every
+   handled review thread is replied to and resolved. Stops once green — the final
+   merge is left to you.
+6. **No remote** — if there's no GitHub remote, rebases onto the default branch
+   and fast-forward merges to keep history linear (safe for parallel worktrees).
 
 On its first run in a repo, `ship` detects the stable facts it depends on — host,
-GitHub remote, default branch, quality-gate commands,
-task-list presence, the exact optional helper-skill names installed, and the
-Codex review command when available — and caches them in `.claude/ship.local.json` for Claude Code or
-`.codex/ship.local.json` for Codex. The host caches are independent. Run
+GitHub remote, default branch, the exact optional helper-skill names installed,
+and the Codex review command when available — and caches them in
+`.claude/ship.local.json` for Claude Code or `.codex/ship.local.json` for Codex.
+The cache lives in the repository's main worktree, so all of its worktrees share
+one. Quality-gate commands and task-list presence can differ by branch, so they
+are read from the current worktree on every run instead. The host caches are
+independent. Run
 `/ship-config` in Claude Code or `$ship refresh config` in Codex to re-detect and
 report changes after the project or installed plugins change.
 
 The `ship` skill also triggers when you say things like "ship it" or "ready to
 open a PR." It never merges a GitHub pull request; if a publishing helper opens a
 draft PR, `ship` drives it green and then marks it ready for review.
+
+#### drive-pr
+
+Step 5 on its own, for any open PR — including ones `ship` didn't open. Run
+`/drive-pr [number|url]` in Claude Code or `$drive-pr` in Codex; with no PR given
+it uses the current branch's. It checks out the PR's branch when the working tree
+is clean, watches checks and fixes failures, rebases onto the PR's base when it
+falls behind, and works through review comments: each is fixed or declined with a
+reason, fixes are reviewed locally before they are pushed, and every handled
+thread gets a reply and is resolved. A draft stays a draft unless you pass
+`--mark-ready`. It never merges.
 
 ### pr-panel
 
