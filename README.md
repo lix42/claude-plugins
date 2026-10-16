@@ -271,7 +271,9 @@ optional helper skills installed in the current session:
    installed. In Codex it uses an installed local-diff review skill, falling back
    to a critical self-review when there is none. Acts on the findings either way.
 3. **Task** — if `docs/TASKS.md` exists and the session worked a task, marks it
-   `[x]` using the host's task helper when available, with a direct-file fallback.
+   done with the host's task helper (`/tasks:tasks-done` in Claude Code). Without
+   one, a frontmatter plan is left for you to run `/tasks:tasks-done`, since its
+   `TASKS.md` is generated; an older checkbox plan is updated directly.
 4. **PR** — if there's a GitHub remote: branch if needed, then commit + push +
    open a PR using the host's publishing helper when available, else `git`/`gh`.
 5. **Drive to green** — hands the PR to `drive-pr` (below): polls checks, fixes
@@ -279,8 +281,8 @@ optional helper skills installed in the current session:
    Every fix gets the same local review as step 2 before it is pushed, and every
    handled review thread is replied to and resolved. Stops once green — the final
    merge is left to you.
-6. **No remote** — if there's no GitHub remote, rebases onto `main` and
-   fast-forward merges to keep history linear (safe for parallel worktrees).
+6. **No remote** — if there's no GitHub remote, rebases onto the default branch
+   and fast-forward merges to keep history linear (safe for parallel worktrees).
 
 On its first run in a repo, `ship` detects the stable facts it depends on — host,
 GitHub remote, default branch, the exact optional helper-skill names installed,
