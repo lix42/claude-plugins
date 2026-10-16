@@ -2,7 +2,7 @@
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 description: Add, remove, split, rename, or change tasks and keep the dependency graph consistent
 user-invocable: true
-args: change - (optional) describe the change, e.g. "add a task for X", "drop Y", "split Z", "move W into the color epic". If omitted, ask.
+argument-hint: "[change]"
 ---
 
 # /tasks-update — Change the plan

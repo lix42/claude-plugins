@@ -2,7 +2,7 @@
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 description: Group an oversized flat task plan into structural epics and split the progress log per epic
 user-invocable: true
-args: hint - (optional) grouping guidance, e.g. "keep the CLI work together" or a proposed epic list. If omitted, derive the grouping from the design and dependency structure.
+argument-hint: "[grouping hint]"
 ---
 
 # /tasks-group — Group tasks into epics
@@ -16,7 +16,8 @@ read it and follow its "Grouping a flat plan into epics" procedure.**
 
 Grouping guidance from the user is in `$ARGUMENTS` — a strong steer, but check it
 against the code's structure and the dependency graph, and say so if it cuts across
-subsystems. If the plan is under every trigger in `epics.md`, say it doesn't need
+subsystems. If it's empty, derive the grouping from the design and dependency
+structure. If the plan is under every trigger in `epics.md`, say it doesn't need
 epics and leave it alone.
 
 Group by structure (never by phase or story headings), **propose every task's new

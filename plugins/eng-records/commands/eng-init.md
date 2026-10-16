@@ -2,7 +2,7 @@
 allowed-tools: Read, Write, Edit, Bash
 description: Initialize eng-records configuration with a custom directory path
 user-invocable: true
-args: path - (optional) Directory path for engineering records. Defaults to ~/.claude/eng-records
+argument-hint: "[path]"
 ---
 
 # /eng-init — Configure Engineering Records Directory

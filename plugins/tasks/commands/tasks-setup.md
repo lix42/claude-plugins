@@ -2,7 +2,7 @@
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 description: Plan a project or feature into per-task files with a dependency graph and a generated docs/TASKS.md
 user-invocable: true
-args: requirement - (optional) what to plan. May be inline requirement text, a path to a plan/design doc (e.g. `docs/plan.md`), or both. If omitted, ask.
+argument-hint: "[requirement or plan-doc path]"
 ---
 
 # /tasks-setup — Plan a project into tasks

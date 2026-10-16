@@ -2,7 +2,7 @@
 allowed-tools: Read, Glob, Grep, Bash
 description: Show which tasks are ready to work on now (deps satisfied), with priority and parallelism suggestions
 user-invocable: true
-args: epic - (optional) limit the report to one epic. If omitted, cover the whole plan.
+argument-hint: "[epic]"
 ---
 
 # /tasks-next — What's ready to work on
