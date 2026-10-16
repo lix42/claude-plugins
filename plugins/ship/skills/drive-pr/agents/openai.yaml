@@ -1,0 +1,4 @@
+interface:
+  display_name: "Drive PR"
+  short_description: "Drive an open pull request to green without merging"
+  default_prompt: "Use $drive-pr to get this pull request green and address its review comments."

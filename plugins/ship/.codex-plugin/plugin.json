@@ -1,6 +1,6 @@
 {
   "name": "ship",
-  "version": "0.5.2",
+  "version": "0.6.0",
   "description": "Verify, review, and publish a finished coding change without merging its pull request.",
   "author": {
     "name": "lix42",
@@ -18,7 +18,7 @@
   "interface": {
     "displayName": "Ship",
     "shortDescription": "Verify and publish finished coding changes",
-    "longDescription": "Run project quality gates, review the diff, update task status, publish a pull request, and drive checks and feedback to green.",
+    "longDescription": "Run project quality gates, review the diff, update task status, publish a pull request, and drive checks and feedback to green. $drive-pr runs the same stabilization on any open pull request.",
     "developerName": "lix42",
     "category": "Productivity",
     "capabilities": [
@@ -29,7 +29,7 @@
     "websiteURL": "https://github.com/lix42/claude-plugins#ship",
     "defaultPrompt": [
       "Use $ship to verify and publish my finished change.",
-      "Use $ship to drive this pull request to green.",
+      "Use $drive-pr to drive this pull request to green.",
       "Use $ship refresh config to re-detect this repository's workflow."
     ]
   }
