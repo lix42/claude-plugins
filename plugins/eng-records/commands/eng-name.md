@@ -2,7 +2,7 @@
 allowed-tools: Read, Edit, Grep, Glob, Bash
 description: Set a friendly name for the current session's engineering record
 user-invocable: true
-args: name - The name to assign to this session record
+argument-hint: "<name>"
 ---
 
 # /eng-name — Name the Current Session Record
@@ -16,7 +16,7 @@ First, read `~/.claude/eng-records.conf` to get the configured directories. If t
 
 ## Steps
 
-1. The user provides a name as the argument: `$ARGUMENTS`
+1. The user provides a name as the argument: `$ARGUMENTS`. If it's empty, ask for one.
 
 2. **Find the current session's record file:**
    - Search in RECORDS_DIR for the file matching the current session ID, or the most recently modified `status: active` file

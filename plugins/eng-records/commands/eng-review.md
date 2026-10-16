@@ -2,7 +2,7 @@
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 description: Generate engineering review documents from one or more record files, grouping records that belong to the same work
 user-invocable: true
-args: targets - (optional) record file paths, globs, --name <name>, --since <yyyy-mm-dd>, or empty to review all un-reviewed records
+argument-hint: "[paths|globs] [--name <name>] [--since <yyyy-mm-dd>]"
 ---
 
 # /eng-review — Generate Reviews From Records

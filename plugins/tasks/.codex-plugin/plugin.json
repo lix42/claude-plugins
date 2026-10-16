@@ -1,6 +1,6 @@
 {
   "name": "tasks",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Plan and track development work as per-task files with frontmatter status and dependencies, queried and updated by a bundled CLI that generates docs/TASKS.md, with optional epics for large plans",
   "author": {
     "name": "lix42",

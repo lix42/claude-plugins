@@ -2,7 +2,6 @@
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep
 description: Re-check the ship workflow's environment (remote, quality gates, task list, available skills) and update the cached config, reporting what changed
 user-invocable: true
-args: none
 ---
 
 # /ship-config — Re-check and update the ship config

@@ -1,7 +1,7 @@
 {
   "name": "ship",
   "description": "Finish a coding task and ship it: run quality gates, code review, mark the task done, then open a PR (or rebase and merge back linearly when there's no remote)",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "author": {
     "name": "lix42"
   }

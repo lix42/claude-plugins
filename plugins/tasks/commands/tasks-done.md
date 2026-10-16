@@ -2,7 +2,7 @@
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 description: Mark a task complete and show what it just unblocked
 user-invocable: true
-args: task - (optional) the task that's finished. If omitted, ask which one.
+argument-hint: "[task]"
 ---
 
 # /tasks-done — Mark a task complete

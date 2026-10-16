@@ -2,7 +2,6 @@
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, Task, Skill
 description: Finish the current task and ship it — quality gates, code review, mark task done, then open a PR or merge back linearly
 user-invocable: true
-args: none
 ---
 
 # /ship — Ship the current change
