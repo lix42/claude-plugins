@@ -2,7 +2,7 @@ import { expect, test } from 'claude-code/testing'
 
 import type { Io } from '../hooks/io'
 import { LINGER_MS } from '../hooks/derive'
-import { createPoller, hurry, refresh, tick, track } from '../hooks/sync'
+import { createPoller, flushAgent, hurry, refresh, tick, track } from '../hooks/sync'
 import type { TrackedPr } from '../types'
 import { GRAPH, REF, VIEW } from './fixtures'
 
@@ -12,6 +12,9 @@ const fakeIo = (answer: (argv: readonly string[]) => string) => {
   let now = 1_000_000
   const calls: string[][] = []
   const toasts: string[] = []
+  const told: string[] = []
+  let agentOn = true
+  let failSend = false
   let closes = 0
   const io: Io = {
     run: async argv => {
@@ -28,10 +31,16 @@ const fakeIo = (answer: (argv: readonly string[]) => string) => {
     notify: async () => null,
     setNotice: async () => null,
     fill: async () => true,
+    tellAgent: async text => {
+      if (failSend) throw new Error('busy')
+      told.push(text)
+    },
+    getAgent: async () => agentOn,
+    setAgent: async isOn => (agentOn = isOn),
     openPane: async () => ({ isPlaced: true }),
     closePane: async () => void (closes += 1),
   }
-  return { io, calls, toasts, list: () => list, closes: () => closes, advance: (ms: number) => (now += ms) }
+  return { io, calls, toasts, told, setAgentOn: (isOn: boolean) => (agentOn = isOn), setFailSend: (fails: boolean) => (failSend = fails), list: () => list, closes: () => closes, advance: (ms: number) => (now += ms) }
 }
 
 const isFull = (argv: readonly string[]) => argv[1] === 'pr' && argv[2] === 'view'
@@ -130,4 +139,68 @@ test('hurry refetches a closed PR, so a reopen shows', async () => {
   await hurry(fake.io, poller)
   expect(fake.list()[0]?.snapshot?.state).toBe('OPEN')
   expect(fake.list()[0]?.endedAt).toBe(null)
+})
+
+test('sends new activity to the agent once, as one message, and nothing for the first fetch', async () => {
+  let view: Record<string, unknown> = VIEW
+  const fake = fakeIo(argv => {
+    if (argv.includes('-i')) return 'HTTP/2.0 200 OK\nEtag: W/"3"\n\n{}'
+    return JSON.stringify(isFull(argv) ? view : GRAPH)
+  })
+  const poller = createPoller()
+  await track(fake.io, poller, [REF])
+  await flushAgent(fake.io, poller)
+  expect(fake.told).toEqual([])
+
+  view = { ...VIEW, comments: [...VIEW.comments, { author: { login: 'carol' }, body: 'Why?', url: 'c2', createdAt: '' }, { author: { login: 'me' }, body: 'Done', url: 'c3', createdAt: '' }] }
+  await refresh(fake.io, poller, REF)
+  await flushAgent(fake.io, poller)
+  await flushAgent(fake.io, poller)
+  expect(fake.told.length).toBe(1)
+  expect(fake.told[0]?.includes('New comment by carol: c2')).toBe(true)
+  expect(fake.told[0]?.includes('Done')).toBe(false)
+})
+
+test('keeps the outbox when sending fails, and drops it while turned off', async () => {
+  let view: Record<string, unknown> = VIEW
+  const fake = fakeIo(argv => {
+    if (argv.includes('-i')) return 'HTTP/2.0 200 OK\nEtag: W/"4"\n\n{}'
+    return JSON.stringify(isFull(argv) ? view : GRAPH)
+  })
+  const poller = createPoller()
+  await track(fake.io, poller, [REF])
+  const comment = (n: number) => ({ author: { login: 'carol' }, body: `Q${n}`, url: `q${n}`, createdAt: '' })
+
+  view = { ...VIEW, comments: [...VIEW.comments, comment(1)] }
+  await refresh(fake.io, poller, REF)
+  fake.setFailSend(true)
+  await flushAgent(fake.io, poller)
+  expect(poller.outbox.length).toBe(1)
+  fake.setFailSend(false)
+  await flushAgent(fake.io, poller)
+  expect(fake.told.length).toBe(1)
+  expect(poller.outbox.length).toBe(0)
+
+  fake.setAgentOn(false)
+  view = { ...VIEW, comments: [...VIEW.comments, comment(1), comment(2)] }
+  await refresh(fake.io, poller, REF)
+  await flushAgent(fake.io, poller)
+  expect(fake.told.length).toBe(1)
+  expect(poller.outbox.length).toBe(0)
+})
+
+test('reports a conflict once across the UNKNOWN that follows a push', async () => {
+  let mergeable = 'CONFLICTING'
+  const fake = fakeIo(argv => {
+    if (argv.includes('-i')) return 'HTTP/2.0 200 OK\nEtag: W/"5"\n\n{}'
+    return JSON.stringify(isFull(argv) ? { ...VIEW, mergeable } : GRAPH)
+  })
+  const poller = createPoller()
+  await track(fake.io, poller, [REF])
+  for (const state of ['UNKNOWN', 'CONFLICTING']) {
+    mergeable = state
+    await refresh(fake.io, poller, REF)
+  }
+  await flushAgent(fake.io, poller)
+  expect(fake.told).toEqual([])
 })

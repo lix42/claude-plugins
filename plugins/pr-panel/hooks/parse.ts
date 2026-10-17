@@ -144,6 +144,7 @@ export const parseSnapshot = (view: any, graph: any): PrSnapshot => {
     hasMoreThreads: Boolean(pr?.reviewThreads?.pageInfo?.hasNextPage),
     repo: parseRepoSettings(repoRaw),
     viewer: {
+      login: graph?.data?.viewer?.login ?? null,
       canMergeAsAdmin: Boolean(pr?.viewerCanMergeAsAdmin),
       canEnableAutoMerge: Boolean(pr?.viewerCanEnableAutoMerge),
     },

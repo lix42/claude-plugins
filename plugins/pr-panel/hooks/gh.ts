@@ -18,6 +18,7 @@ export const PR_VIEW_FIELDS = [
 ].join(',')
 
 const THREADS_QUERY = `query($owner: String!, $repo: String!, $number: Int!) {
+  viewer { login }
   repository(owner: $owner, name: $repo) {
     squashMergeAllowed mergeCommitAllowed rebaseMergeAllowed autoMergeAllowed
     pullRequest(number: $number) {

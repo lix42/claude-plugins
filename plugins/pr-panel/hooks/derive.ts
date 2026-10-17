@@ -1,4 +1,5 @@
-import type { Check, MergeMethod, PrSnapshot, TrackedPr } from '../types'
+import type { Check, Comment, MergeMethod, PrRef, PrSnapshot, Review, Thread, ThreadReply, TrackedPr } from '../types'
+import { isBot } from './parse'
 
 export const FAST_POLL_MS = 15_000
 export const IDLE_POLL_MS = 60_000
@@ -123,6 +124,13 @@ export const summaryLine = (pr: TrackedPr): string => {
 
 export type Change = { text: string; isImportant: boolean }
 
+/** Whether the checks have all just finished. They can go from not yet registered straight to finished between two fetches. */
+const checksFinished = (prev: PrSnapshot, next: PrSnapshot): boolean => {
+  const before = countChecks(prev.checks)
+  const after = countChecks(next.checks)
+  return after.total > 0 && after.pending === 0 && (before.pending > 0 || before.total === 0 || prev.headSha !== next.headSha)
+}
+
 /** What changed between two fetches that the person would want to hear about. */
 export const diffSnapshots = (number: number, prev: PrSnapshot, next: PrSnapshot): Change[] => {
   const changes: Change[] = []
@@ -133,11 +141,8 @@ export const diffSnapshots = (number: number, prev: PrSnapshot, next: PrSnapshot
     return changes
   }
 
-  const before = countChecks(prev.checks)
   const after = countChecks(next.checks)
-  const isSameHead = prev.headSha === next.headSha
-  // Checks can go from not yet registered straight to finished between two fetches.
-  if (after.total > 0 && after.pending === 0 && (before.pending > 0 || before.total === 0 || !isSameHead)) {
+  if (checksFinished(prev, next)) {
     changes.push(
       after.fail > 0
         ? { text: `${at}: ${after.fail} check${after.fail === 1 ? '' : 's'} failed`, isImportant: true }
@@ -166,4 +171,76 @@ export const diffSnapshots = (number: number, prev: PrSnapshot, next: PrSnapshot
   }
 
   return changes
+}
+
+/** Something on a PR the agent may need to act on. */
+export type AgentEvent =
+  | { kind: 'checks-failed'; checks: Check[]; headSha: string }
+  | { kind: 'conflict'; base: string }
+  | { kind: 'review'; review: Review }
+  | { kind: 'thread'; thread: Thread }
+  /** `replies` are the new ones by others; null when the thread outgrew its fetched page and they are unseen. */
+  | { kind: 'reply'; thread: Thread; count: number; replies: ThreadReply[] | null }
+  | { kind: 'comment'; comment: Comment }
+
+export type PrUpdate = { ref: PrRef; title: string; events: AgentEvent[] }
+
+/**
+ * What changed between two fetches that the agent should hear about.
+ *
+ * `lastMergeable` is the last mergeable state other than UNKNOWN before `next`, so a conflict
+ * that stays through GitHub's recomputing after a push is not reported again. The gh account's
+ * own comments are left out, since the agent posts as it; so are bots' top-level comments. Until
+ * both fetches know that account (the GraphQL half has succeeded), only CI and conflicts are reported.
+ */
+export const agentEvents = (prev: PrSnapshot, next: PrSnapshot, lastMergeable: string): AgentEvent[] => {
+  if (next.state !== 'OPEN') return []
+  const events: AgentEvent[] = []
+
+  if (checksFinished(prev, next) && next.checks.some(c => c.state === 'fail')) {
+    events.push({ kind: 'checks-failed', checks: next.checks.filter(c => c.state === 'fail'), headSha: next.headSha })
+  }
+
+  if (next.mergeable === 'CONFLICTING' && lastMergeable !== 'CONFLICTING') {
+    events.push({ kind: 'conflict', base: next.baseRefName })
+  }
+
+  const self = next.viewer.login
+  if (self === null || prev.viewer.login === null) return events
+  const isOther = (author: string) => author !== self
+
+  const seenReviews = new Set(prev.reviews.map(r => r.id))
+  for (const review of next.reviews) {
+    if (seenReviews.has(review.id) || !isOther(review.author)) continue
+    const isComment = review.state === 'COMMENTED' && review.body.trim() !== '' && !isBot(review.author)
+    if (review.state === 'CHANGES_REQUESTED' || isComment) events.push({ kind: 'review', review })
+  }
+
+  // Past one page of threads, resolving one brings an old one into view: not news.
+  const isThreadPageWhole = !prev.hasMoreThreads && !next.hasMoreThreads
+  const before = new Map(prev.threads.map(t => [t.id, t]))
+  for (const thread of next.threads) {
+    const old = before.get(thread.id)
+    if (!old) {
+      if (isThreadPageWhole && isOther(thread.author)) events.push({ kind: 'thread', thread })
+      continue
+    }
+    const count = thread.commentCount - old.commentCount
+    if (count <= 0) continue
+    if (thread.commentCount !== thread.replies.length + 1) {
+      events.push({ kind: 'reply', thread, count, replies: null })
+      continue
+    }
+    const replies = thread.replies.slice(-count).filter(reply => isOther(reply.author))
+    if (replies.length > 0) events.push({ kind: 'reply', thread, count, replies })
+  }
+
+  const seenComments = new Set(prev.comments.map(c => c.url))
+  for (const comment of next.comments) {
+    if (!seenComments.has(comment.url) && !comment.isBot && isOther(comment.author)) {
+      events.push({ kind: 'comment', comment })
+    }
+  }
+
+  return events
 }
