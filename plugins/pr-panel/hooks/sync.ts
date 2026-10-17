@@ -1,8 +1,9 @@
 import type { PrRef, PrSnapshot, TrackedPr } from '../types'
-import { FAST_POLL_MS, FULL_REFRESH_MS, IDLE_POLL_MS, LINGER_MS, diffSnapshots, pollIntervalMs } from './derive'
+import { FAST_POLL_MS, FULL_REFRESH_MS, IDLE_POLL_MS, LINGER_MS, agentEvents, diffSnapshots, pollIntervalMs, type PrUpdate } from './derive'
 import { currentBranchPrArgv, probeArgv, probePaths, prViewArgv, runGh, threadsArgv } from './gh'
 import type { Io } from './io'
 import { extractPrRefs, parseHttpReply, parseSnapshot } from './parse'
+import { agentPrompt } from './prompts'
 
 /** Module-local polling bookkeeping; a reload starts it over with a full fetch. */
 export type Poller = {
@@ -10,6 +11,10 @@ export type Poller = {
   due: Map<string, number>
   lastFull: Map<string, number>
   inFlight: Set<string>
+  /** Activity waiting to be sent to the agent, as one message at the next flush. */
+  outbox: PrUpdate[]
+  /** Each PR's last mergeable state other than UNKNOWN, so a conflict is reported once. */
+  mergeable: Map<string, string>
 }
 
 export const createPoller = (): Poller => ({
@@ -17,6 +22,8 @@ export const createPoller = (): Poller => ({
   due: new Map(),
   lastFull: new Map(),
   inFlight: new Set(),
+  outbox: [],
+  mergeable: new Map(),
 })
 
 const patch = (io: Io, url: string, fn: (pr: TrackedPr) => TrackedPr) =>
@@ -142,7 +149,13 @@ export const refresh = async (io: Io, poller: Poller, ref: PrRef, force = false)
       fetchedAt: now,
       endedAt: isEnded ? (pr.endedAt ?? now) : null,
     }))
-    if (prev) await announce(io, ref, prev, next)
+    const lastMergeable = poller.mergeable.get(ref.url) ?? prev?.mergeable ?? 'UNKNOWN'
+    if (next.mergeable !== 'UNKNOWN') poller.mergeable.set(ref.url, next.mergeable)
+    if (prev) {
+      const events = agentEvents(prev, next, lastMergeable)
+      if (events.length > 0) poller.outbox.push({ ref, title: next.title, events })
+      await announce(io, ref, prev, next)
+    }
   } finally {
     poller.inFlight.delete(ref.url)
   }
@@ -157,6 +170,30 @@ export const tick = async (io: Io, poller: Poller) => {
   )
   for (const pr of list) {
     if (pr.endedAt !== null && now - pr.endedAt >= LINGER_MS) await untrack(io, poller, pr.ref.url)
+  }
+}
+
+/** How many PR updates the outbox keeps while sending fails; the oldest go first. */
+export const OUTBOX_LIMIT = 50
+
+/**
+ * Sends what the outbox holds to the agent as one message, a PR's updates merged under it.
+ * Turned off, it drops them; a send that fails puts them back for the next flush.
+ */
+export const flushAgent = async (io: Io, poller: Poller) => {
+  if (poller.outbox.length === 0) return
+  const updates = poller.outbox.splice(0)
+  if (!(await io.getAgent())) return
+  const merged = new Map<string, PrUpdate>()
+  for (const update of updates) {
+    const known = merged.get(update.ref.url)
+    merged.set(update.ref.url, known ? { ...update, events: [...known.events, ...update.events] } : update)
+  }
+  try {
+    await io.tellAgent(agentPrompt([...merged.values()]))
+  } catch {
+    poller.outbox.unshift(...updates)
+    poller.outbox.splice(0, Math.max(0, poller.outbox.length - OUTBOX_LIMIT))
   }
 }
 

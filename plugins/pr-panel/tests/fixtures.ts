@@ -41,6 +41,7 @@ export const VIEW = {
 
 export const GRAPH = {
   data: {
+    viewer: { login: 'me' },
     repository: {
       squashMergeAllowed: true,
       mergeCommitAllowed: false,
@@ -91,6 +92,6 @@ export const snapshot = (over: Partial<PrSnapshot> = {}): PrSnapshot => ({
   threads: [],
   hasMoreThreads: false,
   repo: { methods: ['squash', 'rebase'], isAutoMergeAllowed: true },
-  viewer: { canMergeAsAdmin: false, canEnableAutoMerge: true },
+  viewer: { login: 'me', canMergeAsAdmin: false, canEnableAutoMerge: true },
   ...over,
 })

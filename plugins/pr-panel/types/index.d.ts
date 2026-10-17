@@ -53,6 +53,8 @@ export type Thread = {
 
 /** What GitHub says the viewer may do on this PR. */
 export type ViewerRights = {
+  /** The gh account's login; its own comments are not reported to the agent. */
+  login: string | null
   canMergeAsAdmin: boolean
   canEnableAutoMerge: boolean
 }
@@ -109,6 +111,8 @@ declare module 'claude-code' {
       /** `<url>#<action>` awaiting its second press. */
       confirming: string | null
       notice: Notice | null
+      /** Whether PR activity is sent to the agent as a message; on by default. */
+      agent: boolean
     }
   }
 }

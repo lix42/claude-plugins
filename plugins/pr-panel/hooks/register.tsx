@@ -6,7 +6,7 @@ import { CONFIRMED_ACTIONS, effectiveMethod, type ActionId } from './derive'
 import type { Io } from './io'
 import type { MergeMethod, Notice, TrackedPr } from '../types'
 import { extractPrRefs, parsePrArg } from './parse'
-import { createPoller, findBranchPr, hurry, refresh, tick, track, untrack, type Poller } from './sync'
+import { createPoller, findBranchPr, flushAgent, hurry, refresh, tick, track, untrack, type Poller } from './sync'
 import { renderBand, renderPane, type PaneState } from './view'
 
 const PANE = 'pr-panel'
@@ -22,6 +22,7 @@ const busy = atom({ plugin: 'pr-panel', key: 'busy' } as const, null as string |
 const expanded = atom({ plugin: 'pr-panel', key: 'expanded' } as const, [] as string[])
 const confirming = atom({ plugin: 'pr-panel', key: 'confirming' } as const, null as string | null)
 const notice = atom({ plugin: 'pr-panel', key: 'notice' } as const, null as Notice | null)
+const agent = atom({ plugin: 'pr-panel', key: 'agent' } as const, true as boolean)
 
 /** The one place `$` is turned into what the rest of the plugin uses. */
 function makeIo($: EngineInterface): Io {
@@ -37,6 +38,9 @@ function makeIo($: EngineInterface): Io {
     notify: (text, title) => $.ui.notify(text, { title }),
     setNotice: value => update($, notice, () => value),
     fill: async text => (await $.prompt.fill({ text })).isFilled,
+    tellAgent: text => $.prompt.submit({ text }),
+    getAgent: () => read($, agent),
+    setAgent: isOn => update($, agent, () => isOn),
     openPane: () => $.ui.open({ id: PANE, title: 'PRs' }),
     closePane: () => $.ui.close({ id: PANE }),
   }
@@ -49,6 +53,15 @@ const selectedPr = async (io: Io, url: string | null) => {
 
 const runCommand = async (io: Io, poller: Poller, current: string | null, args: string) => {
   const arg = args.trim()
+
+  const toggle = /^agent(?:\s+(on|off))?$/.exec(arg)
+  if (toggle) {
+    const isOn = toggle[1] ? toggle[1] === 'on' : await io.getAgent()
+    if (toggle[1]) await io.setAgent(isOn)
+    return isOn
+      ? 'PR activity (failed checks, conflicts, reviews, comments) is sent to the agent. /pr agent off stops it.'
+      : 'PR activity is not sent to the agent. /pr agent on starts it.'
+  }
 
   if (arg === 'untrack') {
     const pr = await selectedPr(io, current)
@@ -82,10 +95,11 @@ export const register: Register = on => {
     const io = makeIo($)
     await $.command.register({
       name: 'pr',
-      description: 'Show the PR panel, track a PR (/pr <url|number>), or stop tracking the shown one (/pr untrack)',
-      argumentHint: '[url|number|untrack]',
+      description:
+        'Show the PR panel, track a PR (/pr <url|number>), stop tracking the shown one (/pr untrack), or toggle messages to the agent (/pr agent on|off)',
+      argumentHint: '[url|number|untrack|agent on|off]',
     })
-    $.clock.every(TICK_MS, () => void tick(io, poller))
+    $.clock.every(TICK_MS, () => void tick(io, poller).finally(() => flushAgent(io, poller)))
     void findBranchPr(io).then(ref => (ref ? track(io, poller, [ref]) : undefined))
     return started
   })

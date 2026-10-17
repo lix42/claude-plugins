@@ -20,6 +20,32 @@ so GitHub Enterprise works wherever `gh` is logged in.
 Every tracked PR has a tab in the pane. `/pr` opens the pane; `/pr untrack`
 stops tracking the PR shown.
 
+## Telling the agent
+
+When a poll finds something the agent may need to handle, the mod sends it a
+message (`$.prompt.submit`), a turn of its own once the session is idle. It says
+what happened, not what to do: the agent decides, and a `/ship` `drive-pr` loop
+handles it as its own process says. Activity found within one tick goes out as
+one message. It reports:
+
+- CI finishing with failed checks (names and links; the agent fetches the logs).
+- The PR starting to conflict with its base.
+- A review requesting changes, or a review comment with a body.
+- New unresolved review threads and new replies on them.
+- New top-level comments from people (bots' are left out).
+
+Comments by the `gh` account are left out: the agent replies as it, so its own
+replies would come back to it. Until the review-threads query has succeeded
+once, the mod does not know that account, so only CI and conflicts are sent.
+A conflict is reported once, not again each time GitHub recomputes it after a
+push. A send that fails is retried at the next poll. Passing checks, approvals,
+auto-merge and merges are not sent (the toast and desktop notification cover
+them). Quoted GitHub text is capped and marked as information, not instructions,
+since anyone who can comment on the PR writes it.
+
+On by default; `/pr agent off` stops it for the session, `/pr agent on` starts
+it again, `/pr agent` says which.
+
 ## The pane
 
 - Header: title, link, state, branch, merge state, review decision, auto-merge.
@@ -97,12 +123,12 @@ leaves the band and the pane; the pane closes once no PR is left.
 | --- | --- |
 | `hooks/register.tsx` | Wires events, holds the state atoms, and builds the `Io` adapter from `$`; the only file that touches `$` |
 | `hooks/io.ts` | The `Io` type: what the rest needs from the engine |
-| `hooks/sync.ts` | Tracking, probing, fetching, and announcing changes |
+| `hooks/sync.ts` | Tracking, probing, fetching, announcing changes, and the agent outbox |
 | `hooks/actions.ts` | Button actions and Fix prompts |
 | `hooks/gh.ts` | `gh` argv builders and the runner |
 | `hooks/parse.ts` | Pure: PR URLs, `gh` JSON into snapshots, HTTP replies |
-| `hooks/derive.ts` | Pure: summaries, poll intervals, available actions, change detection |
-| `hooks/prompts.ts` | Pure: Fix prompt text |
+| `hooks/derive.ts` | Pure: summaries, poll intervals, available actions, change detection, agent events |
+| `hooks/prompts.ts` | Pure: Fix prompt and agent message text |
 | `hooks/view.tsx` | Pure drawing of the band and the pane |
 
 ## Developing
@@ -115,3 +141,9 @@ claude plugin test plugins/pr-panel
 
 Once loaded, Claude Code writes the API types to `.claude-plugin/types/`
 (git-ignored), and `tsc -p plugins/pr-panel` type-checks the mod.
+
+`tsconfig.json` includes the API and built-in tool types but not
+`claude-code-mcp`, which declares every MCP tool connected on the machine that
+last loaded the mod. The mod calls no MCP tool, and with about 300 of them the
+`tool.call` matcher type exceeds TypeScript's instantiation depth (TS2589), so
+whether the check passed would depend on the machine.
