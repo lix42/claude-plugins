@@ -71,8 +71,8 @@ Inputs, from the user or the calling workflow:
    relative to this file) and use the current host's cache exactly as it
    describes — the same cache `ship` uses, with first-run detection when it is
    missing or stale — plus its **live project facts**, read from this worktree.
-   This workflow needs `qualityGates`, `skills.localReview`, `skills.ciRepair`,
-   `skills.reviewFeedback`, and `review.codexCommand`. When `ship` invoked this
+   This workflow needs `qualityGates`, `skills.ciRepair`, and
+   `skills.reviewFeedback`. When `ship` invoked this
    workflow, reuse what it already loaded.
 
 Give the user a one-line summary of the PR and its current state, then loop.
@@ -87,11 +87,15 @@ resolutions and adaptations are reviewed by the `rebase` skill itself (see
 1. Leave the fix uncommitted, then run every non-null `qualityGates` command it
    could affect. A gate already passed against identical code in this session
    need not be repeated.
-2. Review it with the `ship` skill's `local-review.md` (`../ship/local-review.md`
-   relative to this file), scoped to the working tree, so
-   reviewers judge the fix rather than re-reviewing the whole branch.
-3. Fix warranted findings, rerun affected gates, and repeat until the reviewers
-   raise nothing new that is warranted. Then commit and push.
+2. Review it with the `review-changes` skill bundled with this plugin —
+   `ship:review-changes` through the Skill tool in Claude Code,
+   `$review-changes` in Codex, or `../review-changes/SKILL.md` relative to this
+   file when neither can be invoked — scoped to the working tree, so reviewers
+   judge the fix rather than re-reviewing the whole branch. Give it the fix's
+   focus: the failing check or the review comments it answers.
+3. Act on the report as its **Acting on the report** section describes. Then
+   commit and push — unless a critical or important finding is still open,
+   which blocks the push until the user decides.
 
 Batch the fixes for one round (every accepted comment, or every failing check)
 into a single review and a single push, rather than one cycle per fix. Honor

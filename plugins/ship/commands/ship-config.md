@@ -1,12 +1,12 @@
 ---
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep
-description: Re-check the ship workflow's environment (remote, quality gates, task list, available skills) and update the cached config, reporting what changed
+description: Re-check the ship workflow's environment (GitHub remote, default branch, installed helper skills) and update the cached config, reporting what changed
 user-invocable: true
 ---
 
 # /ship-config — Re-check and update the ship config
 
-The ship workflow caches its Claude Code environment as schema version 7 in
+The ship workflow caches its Claude Code environment as schema version 8 in
 `.claude/ship.local.json` so it doesn't re-detect stable facts every run. The cache
 lives in the repository's main worktree, so every worktree shares it; `ship` and
 `drive-pr` both read it. Quality gates and the task list are not cached — they
@@ -22,7 +22,7 @@ Do this:
 
 1. **Locate and read the existing config** at `.claude/ship.local.json` in the
    worktree `config.md` selects, if present. Keep its
-   values in hand for comparison only when it is valid schema version 7 for the
+   values in hand for comparison only when it is valid schema version 8 for the
    `claude` host. Missing, invalid, older-version, and unknown-version caches
    require full re-detection rather than migration or a field-by-field diff.
 
@@ -37,8 +37,7 @@ Do this:
    Ship config changes:
    - environment.hasGitHubRemote: false → true
    - environment.defaultBranch: master → main
-   - skills.localReview: code-review → (none, uses the bundled ship:diff-reviewer)
-   - review.codexCommand: (none) → node ".../codex-companion.mjs" review --wait
+   - skills.taskCompletion: (none) → tasks:tasks-done
    ```
 
    If nothing changed, say so plainly: *"Ship config is already up to date — no

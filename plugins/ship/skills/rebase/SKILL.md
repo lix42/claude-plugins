@@ -119,11 +119,15 @@ covers the uncommitted adaptations.
    code under the branch even when no conflict did. Fix failures and rerun until
    green; never leave the branch past a failing gate.
 2. When a conflict was resolved by hand or an adaptation was made, review the
-   result with the `ship` skill's `local-review.md` (`../ship/local-review.md`
-   relative to this file). Scope it to cover everything the rebase touched:
-   the working tree for uncommitted adaptations, the diff against the target
-   ref for conflict resolutions that landed in rebased commits, and both scopes
-   when both exist. Fix warranted findings and rerun the affected gates.
+   result with the `review-changes` skill bundled with this plugin —
+   `ship:review-changes` through the Skill tool in Claude Code,
+   `$review-changes` in Codex, or `../review-changes/SKILL.md` relative to this
+   file when neither can be invoked. Scope it to cover everything the rebase
+   touched: the working tree for uncommitted adaptations, the diff against the
+   target ref for conflict resolutions that landed in rebased commits, and both
+   scopes when both exist; give "conflict resolutions and adaptations from a
+   rebase onto `<base>`" as its focus. Act on the report as its **Acting on the
+   report** section describes.
 
 ## Finish
 
