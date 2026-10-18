@@ -52,11 +52,14 @@ Inputs, from the user or the calling workflow:
    has not said it is part of the change, list it and ask the user whether to
    commit it, stash it themselves, or let this workflow stash and restore it.
    Never stash without that yes.
-3. **Target ref.** When `environment.hasGitHubRemote` is true, fetch and target
-   `origin/<base>`: the branch will be pushed against the remote base, so
-   unpushed commits on the local `<base>` must not ride along. Otherwise target
-   the local `<base>`, fetching first when it tracks a remote, as `ship`'s
-   no-remote path fast-forwards that branch afterwards.
+3. **Target ref.** When `environment.hasGitHubRemote` is true, find the remote
+   that hosts the base: the one whose URL points at the repository `gh`
+   targets (`gh repo view --json nameWithOwner -q .nameWithOwner`) — not
+   necessarily `origin`, which in a fork's clone is the fork. Fetch it and
+   target `<remote>/<base>`: the branch will be pushed against the remote base,
+   so unpushed commits on the local `<base>` must not ride along. Otherwise
+   target the local `<base>`, fetching first when it tracks a remote, as
+   `ship`'s no-remote path fast-forwards that branch afterwards.
 4. **Up to date?** When `git merge-base --is-ancestor <target> HEAD` succeeds,
    the branch already contains its base. Say so and stop — there is nothing to
    rebase and no impact to judge.

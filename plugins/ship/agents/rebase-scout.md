@@ -33,7 +33,7 @@ other than the branch's own base.
 The caller states:
 
 - **Base** — the branch name, and the **target ref** to rebase onto (for example
-  `origin/main`, or the local `main`). Use them verbatim; never re-pick a base.
+  `upstream/main`, or the local `main`). Use them verbatim; never re-pick a base.
 - **Working-tree change** — whether uncommitted work is part of the change and
   may be stashed and restored. When the tree is dirty and the caller has not
   authorized a stash, stop and report it; never stash on your own.
@@ -47,9 +47,10 @@ Compute the merge base, `MB=$(git merge-base HEAD <target>)`, then read:
   then the full diff of every file or area that could touch the branch's work.
 - **Local** — the branch's own change: `git log --format='%h %s' $MB..HEAD`,
   `git diff $MB..HEAD`, and, when the working tree holds the change,
-  `git diff HEAD` plus `git status --short` for untracked files. Read the commit
-  messages and, when one exists, the task or PR description for the change's
-  intent.
+  `git diff HEAD`, plus the full contents of every untracked file
+  (`git ls-files --others --exclude-standard` lists them individually, where
+  `git status` may show only a directory). Read the commit messages and, when
+  one exists, the task or PR description for the change's intent.
 - **Predicted conflicts** — `git merge-tree --write-tree --name-only <target> HEAD`
   lists conflicting files without touching the tree (Git 2.38+; skip it on older
   Git). It does not see uncommitted work: check the working-tree files against
@@ -121,7 +122,9 @@ itself.
    and skip step 3: an existing stash belongs to the user, never to this run.
 2. **Move the branch.**
    - On a feature branch: `git rebase <target>`. Resolve each conflicting
-     commit's files, `git add` them, and `git rebase --continue`. Never
+     commit's files, `git add` them, and `GIT_EDITOR=true git rebase --continue`
+     — without an editor override, a shell with no terminal editor stops the
+     rebase at the commit message. Never
      `--skip` a commit, and never resolve by taking one side wholesale unless
      the other side's edit is truly obsolete.
    - On the base branch itself (uncommitted work, no feature branch yet):
