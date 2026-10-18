@@ -175,12 +175,9 @@ optional helper skills installed in the current session:
    (below), so everything after it checks the change as it will land.
 2. **Quality gates** — discover and run the project's type-check / test / build /
    lint commands and fix any failures (never ships past a red gate).
-3. **Code review** — reviews the local change before anything is committed. In
-   Claude Code it launches the bundled `ship:diff-reviewer` agent (a single-pass,
-   read-only diff review that scopes itself from git state, no open PR required)
-   and runs a Codex review in parallel when the Codex plugin and CLI are
-   installed. In Codex it uses an installed local-diff review skill, falling back
-   to a critical self-review when there is none. Acts on the findings either way.
+3. **Code review** — reviews the local change before anything is committed, via
+   `review-changes` (below), then fixes the warranted findings and re-reviews
+   the fixes. No open PR is required.
 4. **Task** — if `docs/TASKS.md` exists and the session worked a task, marks it
    done with the host's task helper (`/tasks:tasks-done` in Claude Code). Without
    one, a frontmatter plan is left for you to run `/tasks:tasks-done`, since its
@@ -197,8 +194,8 @@ optional helper skills installed in the current session:
    default branch and fast-forward merges to keep history linear (safe for parallel worktrees).
 
 On its first run in a repo, `ship` detects the stable facts it depends on — host,
-GitHub remote, default branch, the exact optional helper-skill names installed,
-and the Codex review command when available — and caches them in
+GitHub remote, default branch, and the exact optional helper-skill names
+installed — and caches them in
 `.claude/ship.local.json` for Claude Code or `.codex/ship.local.json` for Codex.
 The cache lives in the repository's main worktree, so all of its worktrees share
 one. Quality-gate commands and task-list presence can differ by branch, so they
@@ -239,6 +236,42 @@ large impact it changes nothing and reports back; the main agent then decides
 how to adapt, and asks you when the decision changes what the branch is for.
 Afterwards the quality gates rerun and any conflict resolution or adaptation is
 reviewed like any other fix. It never pushes.
+
+#### review-changes
+
+Reviews a local change — uncommitted work, or a branch's diff against its base —
+with specialized reviewer agents, and reports one merged list of findings. Run
+`/review-changes [base|range] [focus]` in Claude Code; `ship`, `drive-pr`, and
+`rebase` use it for every review. It only reports: it never edits, commits, or
+comments on GitHub.
+
+It works as an orchestrator. It resolves the scope, profiles the change (files,
+size, and signals such as error handling, security-sensitive code, or new types
+in the diff), picks the reviewers that apply, and chooses each one's model —
+lowering an Opus reviewer to Sonnet for a tiny fix, raising a Sonnet reviewer to
+Opus when its area is the heart of a large change. The reviewers run in
+parallel; their findings are deduplicated and grouped by severity.
+
+| Reviewer | Looks for | Default model |
+|---|---|---|
+| `review-bugs` | Logic errors, edge cases, async and concurrency, broken callers | Opus |
+| `review-security` | Injection, trust boundaries, authorization, secrets | Opus |
+| `review-error-handling` | Silent failures, masking fallbacks, missing cleanup | Sonnet |
+| `review-tests` | Coverage gaps for new behavior, tests that cannot fail | Sonnet |
+| `review-conventions` | `CLAUDE.md` / `AGENTS.md` rules and the local idiom | Sonnet |
+| `review-types` | Type invariants, illegal states, public type contracts | Sonnet |
+| `review-docs` | Comments and docs the change made wrong | Sonnet |
+
+To add a reviewer (a CSS reviewer, say), see
+[`plugins/ship/docs/adding-a-reviewer.md`](plugins/ship/docs/adding-a-reviewer.md).
+
+Ship no longer runs a Codex review itself, and it never calls `/code-review`.
+Run `/codex:review` or `/code-review` yourself for a second opinion.
+
+The orchestrator is built for Claude Code's subagents and per-agent models. In
+Codex it currently falls back to an installed local-diff review skill, or to
+reviewing against the same reviewers' checklists itself; native Codex support
+is planned.
 
 ### pr-panel
 

@@ -39,7 +39,7 @@ to refresh configuration, do not ship anything:
 3. Re-detect every field using the documented procedure.
 4. Compare fields other than `detectedAt` and report `old → new` values. Treat
    any older or unknown schema version and invalid JSON as a full re-detection.
-5. Write the version-7 result to that same cache path and stop.
+5. Write the version-8 result to that same cache path and stop.
 
 ## Assess the change
 
@@ -48,7 +48,7 @@ Read `config.md` before using cached values.
 1. Identify the runtime as Claude Code or Codex and select only its cache:
    `.claude/ship.local.json` or `.codex/ship.local.json` respectively, inside the
    repository's main worktree. `config.md` gives the exact lookup.
-2. If that cache contains valid schema version 7 for the current host, use it.
+2. If that cache contains valid schema version 8 for the current host, use it.
    If it is missing, invalid, an older version, another version, or records
    another host, run complete detection and overwrite only the selected cache.
    Never read the other host's cache.
@@ -75,7 +75,8 @@ resolutions in rebased commits. If the skill cannot be invoked, read
 `../rebase/SKILL.md` relative to this file and follow it directly.
 
 It reuses the config already loaded here. When it reports a large impact and
-asks the user how to adapt, wait for the answer before continuing.
+asks the user how to adapt, or stops on a review finding that blocks it, wait
+for the answer before continuing.
 
 ## 2. Pass quality gates
 
@@ -92,10 +93,19 @@ workflow, rerun every gate that could be affected.
 ## 3. Review the local diff
 
 This step reviews the working change and runs before any commit or pull request.
-Follow `local-review.md` bundled beside this file, scoped to the working tree
-while the change is uncommitted, or to the diff against
-`environment.defaultBranch` (pass it as the Codex command's `--base`) once it is
-committed.
+Invoke the `review-changes` skill bundled with this plugin —
+`ship:review-changes` through the Skill tool in Claude Code, `$review-changes` in
+Codex — scoped to the working tree while the change is uncommitted, or once it
+is committed to `git diff <target>...HEAD`, where `<target>` is the target ref
+the rebase in step 1 resolved (`<remote>/<base>` when a GitHub remote exists).
+A local base branch can be missing or stale, which would pull upstream commits
+into the review. If the skill
+cannot be invoked, read `../review-changes/SKILL.md` relative to this file and
+follow it directly.
+
+It selects the reviewers and their models and returns one merged report. Act on
+the report as its **Acting on the report** section describes. A missing pull
+request is never a reason to skip the review.
 
 ## 4. Complete a tracked task
 
@@ -167,10 +177,9 @@ plugin — `ship:drive-pr` through the Skill tool in Claude Code, `$drive-pr` in
 Codex — with its number and `--mark-ready`, since a draft from step 5 is this
 workflow's intermediate state rather than the user's choice. It watches checks,
 rebases with the `rebase` skill when the branch falls behind, reviews every fix
-with `local-review.md` before pushing it, and replies to and resolves review
-threads. If the skill
-cannot be invoked, read `../drive-pr/SKILL.md` relative to this file and follow
-it directly.
+with the `review-changes` skill before pushing it, and replies to and resolves
+review threads. If the skill cannot be invoked, read `../drive-pr/SKILL.md`
+relative to this file and follow it directly.
 
 It reuses the config already loaded here. Never merge the pull request.
 
@@ -195,8 +204,11 @@ Report the resulting default-branch commit.
 ## Finish
 
 Summarize the rebases (upstream commits integrated, impact, and any adaptation),
-the gates that passed, review outcome, task updates, and publication
-result. For GitHub, include the PR URL, green status, the review threads replied
-to and resolved, and whether it was marked ready for review; remind the user that
-the final merge remains theirs. For no-remote integration, include the resulting
-commit. Call out anything skipped and why.
+the gates that passed, review outcome (the reviewers run with their models,
+findings fixed and declined), task updates, and publication result. For
+GitHub, include the PR URL, green status, the review threads replied to and
+resolved, and whether it was marked ready for review; remind the user that the
+final merge remains theirs. For no-remote integration, include the resulting
+commit. Call out anything skipped and why. Close by noting that `/codex:review`
+or `/code-review` remain available for a second opinion the user runs
+themselves; never run them from this workflow.
