@@ -2,7 +2,8 @@
 
 How the ship workflow reviews a local change. `ship` runs it once before the
 first commit; `drive-pr` runs it on every fix before pushing it to a pull
-request. The caller states the scope.
+request; `rebase` runs it on every conflict resolution and adaptation. The
+caller states the scope.
 
 A missing pull request is never a reason to skip a configured reviewer.
 
