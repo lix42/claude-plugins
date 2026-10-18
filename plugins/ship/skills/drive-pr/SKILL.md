@@ -79,17 +79,17 @@ Give the user a one-line summary of the PR and its current state, then loop.
 
 ## Review every fix before it is pushed
 
-Each code change this workflow makes — a CI fix, a review-comment fix, a rebase
-conflict resolution — is reviewed locally before it reaches the pull request:
+Each code change this workflow makes — a CI fix, a review-comment fix — is
+reviewed locally before it reaches the pull request. A rebase's conflict
+resolutions and adaptations are reviewed by the `rebase` skill itself (see
+**Loop**).
 
 1. Leave the fix uncommitted, then run every non-null `qualityGates` command it
    could affect. A gate already passed against identical code in this session
    need not be repeated.
 2. Review it with the `ship` skill's `local-review.md` (`../ship/local-review.md`
    relative to this file), scoped to the working tree, so
-   reviewers judge the fix rather than re-reviewing the whole branch. A conflict
-   resolution is the exception: the rebase has already committed it, so review
-   the branch's diff against `origin/<baseRefName>` instead.
+   reviewers judge the fix rather than re-reviewing the whole branch.
 3. Fix warranted findings, rerun affected gates, and repeat until the reviewers
    raise nothing new that is warranted. Then commit and push.
 
@@ -117,15 +117,21 @@ handled:
    they are resolved):
    - Fetch, and first integrate anything new on the PR's own branch
      (`git pull --ff-only`; stop if it has diverged).
-   - Rebase onto `origin/<baseRefName>` — the PR's base, which is not always
-     the default branch — resolving conflicts without discarding either side's
-     intent, and rerun all quality gates.
-   - If conflicts were resolved by hand, review the result as above.
+   - Rebase with the `rebase` skill bundled with this plugin — `ship:rebase`
+     through the Skill tool in Claude Code, `$rebase` in Codex, or
+     `../rebase/SKILL.md` relative to this file when neither can be invoked —
+     with `<baseRefName>` as the base, which is not always the default branch.
+     It judges how the base's new commits affect this PR, resolves conflicts and
+     makes small adaptations itself, brings large ones back for a decision,
+     reruns every gate, and reviews any conflict resolution or adaptation.
+   - Commit any adaptations it left uncommitted, as a fix.
    - Push with `git push --force-with-lease --force-if-includes`. The second
      flag refuses the push when the remote branch has commits the local branch
      never integrated, which the fetch alone would otherwise let a bare
      `--force-with-lease` overwrite. If the push is refused, someone else
      pushed: integrate their commits, rerun gates, and retry.
+   - A large impact the rebase puts to the user is an external blocker until
+     they answer; report the PR's state and wait.
 3. **Review feedback.** Handle unresolved review threads and actionable PR
    comments; see **Address review feedback**.
 4. **Repeat.** Any pushed change restarts check and feedback inspection.

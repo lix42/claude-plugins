@@ -4,9 +4,9 @@ description: >-
   Take a finished coding change from "done writing code" to "ready to merge."
   Use when the user invokes $ship or /ship, asks to ship or wrap up a finished
   change, wants to open a pull request and drive it to green, or asks to refresh
-  ship configuration. Run project quality gates, review the diff, update
-  tracked-task state, then publish and stabilize a GitHub PR or integrate
-  linearly when no GitHub remote exists.
+  ship configuration. Rebase onto the base, run project quality gates, review
+  the diff, update tracked-task state, then publish and stabilize a GitHub PR
+  or integrate linearly when no GitHub remote exists.
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, Task, Skill
 ---
 
@@ -63,7 +63,20 @@ Give the user a one-line execution summary, then run the steps in order. If a
 cached command or helper is no longer valid, fix the route for this run and tell
 the user to refresh the config afterward.
 
-## 1. Pass quality gates
+## 1. Rebase onto the base branch
+
+Bring the change up to date with its base before verifying it, so the gates and
+the review loop judge the change as it will land. Invoke the `rebase` skill
+bundled with this plugin — `ship:rebase` through the Skill tool in Claude Code,
+`$rebase` in Codex — saying that the working-tree change is the change being
+shipped (it may stash and restore it) and that this workflow verifies next, so
+it skips its own gates and review. If the skill cannot be invoked, read
+`../rebase/SKILL.md` relative to this file and follow it directly.
+
+It reuses the config already loaded here. When it reports a large impact and
+asks the user how to adapt, wait for the answer before continuing.
+
+## 2. Pass quality gates
 
 Run every non-null command under `qualityGates`, using the exact command just read.
 Run type-check, tests, build, and lint when present. A successful gate already run
@@ -72,7 +85,7 @@ against identical code in this session need not be repeated.
 Fix failures and rerun affected gates until green. If code changes later in the
 workflow, rerun every gate that could be affected.
 
-## 2. Review the local diff
+## 3. Review the local diff
 
 This step reviews the working change and runs before any commit or pull request.
 Follow `local-review.md` bundled beside this file, scoped to the working tree
@@ -80,7 +93,7 @@ while the change is uncommitted, or to the diff against
 `environment.defaultBranch` (pass it as the Codex command's `--base`) once it is
 committed.
 
-## 3. Complete a tracked task
+## 4. Complete a tracked task
 
 When `tasks.tasksFile` is set and the current change clearly implements one task:
 
@@ -116,46 +129,60 @@ Identify the task from the task goal, branch, diff, and session context. Ask the
 user if multiple tasks remain plausible. Skip when there is no task file or the
 change is not tracked.
 
-## 4. Publish when a GitHub remote exists
+## 5. Publish when a GitHub remote exists
 
 Follow this path only when `environment.hasGitHubRemote` is true.
 
 1. If currently on `environment.defaultBranch`, create a feature branch before
    committing. Never commit the change directly on the default branch.
-2. If `skills.publishing` is set, invoke that exact helper. Otherwise stage the
+2. Rebase again with the `rebase` skill, as in step 1, so a base that moved
+   during the review loop is integrated before the pull request opens — but
+   this time let it run its own verification: its gates and its review of any
+   conflict resolution or adaptation are the last checks before publishing. It
+   stops at once when the branch is already current.
+3. If `skills.publishing` is set, invoke that exact helper. Otherwise stage the
    intended files, commit with a clear imperative summary and rationale, push
    with upstream tracking, and create a concise PR with `gh pr create`.
-3. Honor repository and user commit conventions. Do not stage unrelated changes.
-4. Record whether the resulting pull request is a draft. In particular,
+   Commit any adaptations the rebase left uncommitted along with the change.
+   When the branch was already pushed and a rebase in this run rewrote its
+   commits, a plain push is rejected: push it yourself with
+   `git push --force-with-lease --force-if-includes` before invoking a
+   publishing helper, and never let a helper retry with a bare `--force`.
+4. Honor repository and user commit conventions. Do not stage unrelated changes.
+5. Record whether the resulting pull request is a draft. In particular,
    `github:yeet` normally creates a draft; that is an intermediate state, not the
    end of this workflow.
 
 Continue immediately to stabilization. Do not stop merely because a publishing
 helper returned a pull-request URL.
 
-## 5. Drive the pull request to green
+## 6. Drive the pull request to green
 
 Hand the pull request just published to the `drive-pr` skill bundled with this
 plugin — `ship:drive-pr` through the Skill tool in Claude Code, `$drive-pr` in
-Codex — with its number and `--mark-ready`, since a draft from step 4 is this
+Codex — with its number and `--mark-ready`, since a draft from step 5 is this
 workflow's intermediate state rather than the user's choice. It watches checks,
-rebases when the branch falls behind, reviews every fix with `local-review.md`
-before pushing it, and replies to and resolves review threads. If the skill
+rebases with the `rebase` skill when the branch falls behind, reviews every fix
+with `local-review.md` before pushing it, and replies to and resolves review
+threads. If the skill
 cannot be invoked, read `../drive-pr/SKILL.md` relative to this file and follow
 it directly.
 
 It reuses the config already loaded here. Never merge the pull request.
 
-## 6. Integrate linearly when no GitHub remote exists
+## 7. Integrate linearly when no GitHub remote exists
 
 Follow this path only when `environment.hasGitHubRemote` is false:
 
 1. Create a feature branch if currently on the default branch, then commit the
    intended change.
-2. Rebase the feature branch onto the latest local default branch. If that branch
-   tracks a remote, fetch first. Resolve conflicts without discarding user work.
-3. Rerun all quality gates after the rebase and fix any failures.
-4. Fast-forward the default branch to the rebased feature branch with
+2. Rebase the feature branch onto the default branch with the `rebase` skill.
+   Unlike step 1, the change is committed now, so say the working tree holds
+   no part of it, and let the skill run its own verification. It fetches first when the
+   default branch tracks a remote, and it reruns every gate and reviews any
+   conflict resolution or adaptation. Commit any adaptations it left
+   uncommitted.
+3. Fast-forward the default branch to the rebased feature branch with
    `git merge --ff-only`. If the default branch is checked out in another
    worktree, stop and explain instead of forcing the operation.
 
@@ -163,7 +190,8 @@ Report the resulting default-branch commit.
 
 ## Finish
 
-Summarize the gates that passed, review outcome, task updates, and publication
+Summarize the rebases (upstream commits integrated, impact, and any adaptation),
+the gates that passed, review outcome, task updates, and publication
 result. For GitHub, include the PR URL, green status, the review threads replied
 to and resolved, and whether it was marked ready for review; remind the user that
 the final merge remains theirs. For no-remote integration, include the resulting

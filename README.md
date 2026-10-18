@@ -171,27 +171,30 @@ Run `/ship` in Claude Code, invoke `$ship` in Codex, or say “ship it” after
 finishing a task. It works these steps in order, adapting to the host and the
 optional helper skills installed in the current session:
 
-1. **Quality gates** — discover and run the project's type-check / test / build /
+1. **Rebase** — brings the change up to date with its base first, via `rebase`
+   (below), so everything after it checks the change as it will land.
+2. **Quality gates** — discover and run the project's type-check / test / build /
    lint commands and fix any failures (never ships past a red gate).
-2. **Code review** — reviews the local change before anything is committed. In
+3. **Code review** — reviews the local change before anything is committed. In
    Claude Code it launches the bundled `ship:diff-reviewer` agent (a single-pass,
    read-only diff review that scopes itself from git state, no open PR required)
    and runs a Codex review in parallel when the Codex plugin and CLI are
    installed. In Codex it uses an installed local-diff review skill, falling back
    to a critical self-review when there is none. Acts on the findings either way.
-3. **Task** — if `docs/TASKS.md` exists and the session worked a task, marks it
+4. **Task** — if `docs/TASKS.md` exists and the session worked a task, marks it
    done with the host's task helper (`/tasks:tasks-done` in Claude Code). Without
    one, a frontmatter plan is left for you to run `/tasks:tasks-done`, since its
    `TASKS.md` is generated; an older checkbox plan is updated directly.
-4. **PR** — if there's a GitHub remote: branch if needed, then commit + push +
-   open a PR using the host's publishing helper when available, else `git`/`gh`.
-5. **Drive to green** — hands the PR to `drive-pr` (below): polls checks, fixes
-   failures, rebases when the PR falls behind, and addresses review comments.
-   Every fix gets the same local review as step 2 before it is pushed, and every
+5. **PR** — if there's a GitHub remote: branch if needed, rebase again in case
+   the base moved during review, then commit + push + open a PR using the
+   host's publishing helper when available, else `git`/`gh`.
+6. **Drive to green** — hands the PR to `drive-pr` (below): polls checks, fixes
+   failures, rebases (via `rebase`) when the PR falls behind, and addresses review comments.
+   Every fix gets the same local review as step 3 before it is pushed, and every
    handled review thread is replied to and resolved. Stops once green — the final
    merge is left to you.
-6. **No remote** — if there's no GitHub remote, rebases onto the default branch
-   and fast-forward merges to keep history linear (safe for parallel worktrees).
+7. **No remote** — if there's no GitHub remote, rebases (via `rebase`) onto the
+   default branch and fast-forward merges to keep history linear (safe for parallel worktrees).
 
 On its first run in a repo, `ship` detects the stable facts it depends on — host,
 GitHub remote, default branch, the exact optional helper-skill names installed,
@@ -210,7 +213,7 @@ draft PR, `ship` drives it green and then marks it ready for review.
 
 #### drive-pr
 
-Step 5 on its own, for any open PR — including ones `ship` didn't open. Run
+Step 6 on its own, for any open PR — including ones `ship` didn't open. Run
 `/drive-pr [number|url]` in Claude Code or `$drive-pr` in Codex; with no PR given
 it uses the current branch's. It checks out the PR's branch when the working tree
 is clean, watches checks and fixes failures, rebases onto the PR's base when it
@@ -218,6 +221,24 @@ falls behind, and works through review comments: each is fixed or declined with 
 reason, fixes are reviewed locally before they are pushed, and every handled
 thread gets a reply and is resolved. A draft stays a draft unless you pass
 `--mark-ready`. It never merges.
+
+#### rebase
+
+Brings the current branch up to date with its base — the PR's base when there is
+an open PR, else the default branch, or one you name with `/rebase [base]` in
+Claude Code (`$rebase` in Codex). `ship` and `drive-pr` use it for every rebase.
+
+When the branch is behind, the bundled `rebase-scout` agent (on Sonnet) first
+weighs the base's new commits against the branch's change — whether or not git
+reports conflicts. It looks for upstream work that makes the change simpler or
+redundant, that takes the area in another direction, that the change now needs
+to cover too, or that changed a contract the change relies on, and reads each
+conflict to tell textual noise from colliding intent. With no or small impact it
+rebases, resolves conflicts, and makes the mechanical adaptations itself. With a
+large impact it changes nothing and reports back; the main agent then decides
+how to adapt, and asks you when the decision changes what the branch is for.
+Afterwards the quality gates rerun and any conflict resolution or adaptation is
+reviewed like any other fix. It never pushes.
 
 ### pr-panel
 

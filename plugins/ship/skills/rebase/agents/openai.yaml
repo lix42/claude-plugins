@@ -1,0 +1,4 @@
+interface:
+  display_name: "Rebase"
+  short_description: "Rebase onto the base branch and adapt to what changed"
+  default_prompt: "Use $rebase to bring this branch up to date with its base and adapt it to the upstream changes."
