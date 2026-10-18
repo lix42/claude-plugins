@@ -1,7 +1,7 @@
 {
   "name": "ship",
   "description": "Finish a coding task and ship it: rebase and adapt to the base, run quality gates, code review, mark the task done, then open a PR and drive it to green (or rebase and merge back linearly when there's no remote); /drive-pr drives any open PR to green; /rebase rebases onto the base and adapts to what changed; /review-changes reviews a local change with specialized reviewer agents",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "author": {
     "name": "lix42"
   }

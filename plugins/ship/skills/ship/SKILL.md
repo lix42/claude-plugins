@@ -28,6 +28,28 @@ Optional helper skills are soft dependencies. Use the exact detected helper when
 available and its role matches; otherwise use the built-in fallback. Never assume
 a helper exists because its plugin is mentioned in documentation.
 
+Inputs, from the user or the calling workflow:
+
+- **`--skip-gates`** — the caller already ran this repository's `qualityGates`
+  commands, green, against the change as it stands. Skip step 2.
+- **`--skip-review`** — the caller already ran this plugin's `review-changes`
+  skill on the change as it stands and acted on its report. Skip step 3. Another
+  reviewer — `/code-review`, `/codex:review`, a human — is not the same review
+  and does not count: when that is what the caller ran, run step 3 anyway.
+
+A skip vouches only for the code the caller checked, so it lapses — run the
+step anyway and tell the user why — when:
+
+- the rebase in step 1 integrated upstream commits or adapted the change, since
+  the code being shipped is no longer the code that was checked; or
+- this workflow changes code before publishing, such as a gate fix after a
+  skipped review: review that new code with `review-changes`, and rerun every
+  gate it could affect.
+
+The skips cover steps 2 and 3 only. The pre-publish rebase in step 5 and
+`drive-pr` in step 6 still verify whatever they change, because the caller never
+checked that code.
+
 ## Refresh configuration
 
 If the request is `/ship-config`, `$ship refresh config`, or otherwise asks only
@@ -59,7 +81,8 @@ Read `config.md` before using cached values.
    `git status`, the diff against the base branch, the current branch, worktree
    state, and which tracked task this session's change implements.
 
-Give the user a one-line execution summary, then run the steps in order. If a
+Give the user a one-line execution summary, naming any step the caller asked to
+skip, then run the steps in order. If a
 cached command or helper is no longer valid, fix the route for this run and tell
 the user to refresh the config afterward.
 
@@ -80,6 +103,9 @@ for the answer before continuing.
 
 ## 2. Pass quality gates
 
+Skip this step under `--skip-gates` unless the skip has lapsed (see the inputs
+above).
+
 When step 1 moved the branch, re-read the **live project facts** first: the
 base's new commits can add, rename, or drop a gate command.
 
@@ -91,6 +117,9 @@ Fix failures and rerun affected gates until green. If code changes later in the
 workflow, rerun every gate that could be affected.
 
 ## 3. Review the local diff
+
+Skip this step under `--skip-review` unless the skip has lapsed (see the inputs
+above).
 
 This step reviews the working change and runs before any commit or pull request.
 Invoke the `review-changes` skill bundled with this plugin —
@@ -209,6 +238,7 @@ findings fixed and declined), task updates, and publication result. For
 GitHub, include the PR URL, green status, the review threads replied to and
 resolved, and whether it was marked ready for review; remind the user that the
 final merge remains theirs. For no-remote integration, include the resulting
-commit. Call out anything skipped and why. Close by noting that `/codex:review`
+commit. Call out anything skipped and why — including steps skipped at the
+caller's request, and any requested skip that lapsed and what made it lapse. Close by noting that `/codex:review`
 or `/code-review` remain available for a second opinion the user runs
 themselves; never run them from this workflow.
