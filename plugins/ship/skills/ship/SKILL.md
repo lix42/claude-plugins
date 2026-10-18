@@ -69,14 +69,18 @@ Bring the change up to date with its base before verifying it, so the gates and
 the review loop judge the change as it will land. Invoke the `rebase` skill
 bundled with this plugin — `ship:rebase` through the Skill tool in Claude Code,
 `$rebase` in Codex — saying that the working-tree change is the change being
-shipped (it may stash and restore it) and that this workflow verifies next, so
-it skips its own gates and review. If the skill cannot be invoked, read
+shipped (it may stash and restore it) and that this workflow runs the gates and
+a working-tree review next, so it skips its gates and reviews only conflict
+resolutions in rebased commits. If the skill cannot be invoked, read
 `../rebase/SKILL.md` relative to this file and follow it directly.
 
 It reuses the config already loaded here. When it reports a large impact and
 asks the user how to adapt, wait for the answer before continuing.
 
 ## 2. Pass quality gates
+
+When step 1 moved the branch, re-read the **live project facts** first: the
+base's new commits can add, rename, or drop a gate command.
 
 Run every non-null command under `qualityGates`, using the exact command just read.
 Run type-check, tests, build, and lint when present. A successful gate already run

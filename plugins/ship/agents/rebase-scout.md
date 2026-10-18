@@ -132,7 +132,10 @@ itself.
      diverged — restore the stash and report it rather than rebasing the base.
 3. **Restore the work** — only the stash this run pushed. Find its entry by the
    recorded commit (`git stash list --format='%gd %H'`), since the user may
-   have pushed others meanwhile, and `git stash pop <that entry>`. On conflicts,
+   have pushed others meanwhile, and `git stash pop --index <that entry>`, so
+   files the user had staged come back staged. If git refuses because the
+   index cannot be recreated, it has applied nothing: rerun the pop without
+   `--index` and say in `State` that the staging was lost. On conflicts,
    resolve the files, then `git reset` to unstage them so the change stays
    uncommitted, and drop that entry. When the pop fails on an untracked file
    that collides with one upstream added, it may already have restored the

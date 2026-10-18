@@ -37,9 +37,11 @@ Inputs, from the user or the calling workflow:
   rebasing it onto the default branch would pull in its parent's commits.
 - **Working-tree change** — whether uncommitted work is part of the change.
   `ship` says yes: its change is not committed yet.
-- **Verification** — whether the caller runs the quality gates and a local
-  review over the result next, as `ship` does before its review loop. Then skip
-  **Verify** here.
+- **Verification** — whether the caller runs the quality gates and a
+  working-tree review over the result next, as `ship` does before its review
+  loop. Then **Verify** here skips the gates and reviews only conflict
+  resolutions that landed in rebased commits, which a working-tree review
+  cannot see.
 
 ## 1. Check whether a rebase is needed
 
@@ -57,9 +59,12 @@ Inputs, from the user or the calling workflow:
    targets (`gh repo view --json nameWithOwner -q .nameWithOwner`) — not
    necessarily `origin`, which in a fork's clone is the fork. Fetch it and
    target `<remote>/<base>`: the branch will be pushed against the remote base,
-   so unpushed commits on the local `<base>` must not ride along. Otherwise
-   target the local `<base>`, fetching first when it tracks a remote, as
-   `ship`'s no-remote path fast-forwards that branch afterwards.
+   so unpushed commits on the local `<base>` must not ride along. Otherwise —
+   no GitHub remote, where `ship` fast-forwards the local `<base>` afterwards —
+   fetch when `<base>` tracks a remote, since a fetch moves only the tracking
+   ref, and target whichever of `<base>` and `<base>@{upstream}` contains the
+   other; the local `<base>` alone when it has no upstream. When the two have
+   diverged, stop and ask the user which the branch belongs on.
 4. **Up to date?** When `git merge-base --is-ancestor <target> HEAD` succeeds,
    the branch already contains its base. Say so and stop — there is nothing to
    rebase and no impact to judge.
@@ -105,7 +110,9 @@ It returns a report whose first line is `Impact: none | small | large`.
 
 ## 4. Verify
 
-Skip this when the caller said it verifies next.
+When the caller said it verifies next, skip step 1, and in step 2 review only
+the conflict resolutions in rebased commits — the caller's working-tree review
+covers the uncommitted adaptations.
 
 1. Run every non-null `qualityGates` command from `config.md`'s **live project
    facts**, read from the current worktree — the base's new commits changed the
