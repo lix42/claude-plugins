@@ -193,6 +193,12 @@ optional helper skills installed in the current session:
 7. **No remote** — if there's no GitHub remote, rebases (via `rebase`) onto the
    default branch and fast-forward merges to keep history linear (safe for parallel worktrees).
 
+A caller that already did steps 2 or 3 can pass `--skip-gates` or
+`--skip-review` (`/ship --skip-review`). `--skip-review` counts only a
+`review-changes` run, not `/code-review` or another reviewer. Either skip lapses
+when the rebase in step 1 pulls in upstream commits or later code changes, and
+the PR-time rebase and `drive-pr` still verify their own changes.
+
 On its first run in a repo, `ship` detects the stable facts it depends on — host,
 GitHub remote, default branch, and the exact optional helper-skill names
 installed — and caches them in
