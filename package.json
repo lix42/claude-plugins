@@ -1,16 +1,18 @@
 {
   "name": "opencode-lix42",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Tasks, shipping workflows, and a live PR panel for OpenCode V2",
   "repository": { "type": "git", "url": "git+https://github.com/lix42/claude-plugins.git" },
   "type": "module",
   "exports": {
     ".": "./packages/opencode/src/index.ts",
-    "./tui": "./packages/opencode/src/tui.tsx"
+    "./tui": "./packages/opencode/dist/tui.js"
   },
-  "files": ["index.ts", "tui.tsx", "packages/opencode/src", "packages/opencode/README.md", "plugins/tasks/skills", "plugins/ship/skills", "plugins/ship/agents", "plugins/pr-panel/README.md", "plugins/pr-panel/hooks", "plugins/pr-panel/types"],
+  "files": ["index.ts", "tui.tsx", "packages/opencode/src", "packages/opencode/dist", "packages/opencode/README.md", "plugins/tasks/skills", "plugins/ship/skills", "plugins/ship/agents", "plugins/pr-panel/README.md", "plugins/pr-panel/hooks", "plugins/pr-panel/types"],
   "scripts": {
-    "test": "bun test --conditions=browser --preload @opentui/solid/preload packages/opencode/test",
+    "build": "node packages/opencode/scripts/build-tui.mjs",
+    "check:build": "node packages/opencode/scripts/build-tui.mjs --check",
+    "test": "npm run check:build && bun test --conditions=browser --preload @opentui/solid/preload packages/opencode/test",
     "typecheck": "tsc -p packages/opencode"
   },
   "engines": { "node": ">=22.18.0" },
@@ -24,6 +26,9 @@
     "solid-js": ">=1.9.0"
   },
   "devDependencies": {
+    "@babel/core": "7.29.7",
+    "@babel/preset-typescript": "7.27.1",
+    "babel-preset-solid": "1.9.12",
     "@opentui/core": "0.5.17",
     "@opentui/solid": "0.5.17",
     "solid-js": "1.9.12",
