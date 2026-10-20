@@ -1,6 +1,6 @@
 # claude-plugins
 
-Custom Claude Code and Codex plugins by [lix42](https://github.com/lix42).
+Custom Claude Code, Codex, and OpenCode extensions by [lix42](https://github.com/lix42).
 
 ## Installation
 
@@ -44,7 +44,30 @@ codex plugin add tasks@lix42
 codex plugin add ship@lix42
 ```
 
-`pr-panel` is Claude Code-only: it is a hooks module, not a skill.
+`pr-panel` is not available in Codex: it needs a host UI integration, not a skill.
+
+### OpenCode V2
+
+Install the integration package directly from GitHub (OpenCode **2.0.32+**):
+
+```sh
+opencode plugin add github:lix42/claude-plugins#main
+```
+
+This installs all three features globally: task and shipping skills, their slash
+commands, eight shipping subagents, and the PR-panel terminal UI. No local clone,
+skill symlinks, skills.sh registration, or separately copied commands are needed.
+The server and terminal load the package's two entrypoints automatically.
+
+Use `/tasks-setup`, `/tasks-next`, `/start-task <task>`, `/ship`, or `/pr`.
+Skills can also be loaded explicitly with `@task-tracking` or `@ship`.
+The task CLI requires Node **22.18+**; PR operations require authenticated `gh`
+on the **OpenCode server's** PATH.
+
+Update with `opencode plugin update`. To pin a release or complete commit hash,
+replace `#main` in the install target. See
+[the OpenCode integration guide](packages/opencode/README.md) for options,
+reviewer models, remote-server setup, and development checks.
 
 ## Plugins
 
@@ -202,7 +225,8 @@ the PR-time rebase and `drive-pr` still verify their own changes.
 On its first run in a repo, `ship` detects the stable facts it depends on — host,
 GitHub remote, default branch, and the exact optional helper-skill names
 installed — and caches them in
-`.claude/ship.local.json` for Claude Code or `.codex/ship.local.json` for Codex.
+`.claude/ship.local.json` for Claude Code, `.codex/ship.local.json` for Codex,
+or `.opencode/ship.local.json` for OpenCode.
 The cache lives in the repository's main worktree, so all of its worktrees share
 one. Quality-gate commands and task-list presence can differ by branch, so they
 are read from the current worktree on every run instead. The host caches are
@@ -274,12 +298,18 @@ To add a reviewer (a CSS reviewer, say), see
 Ship no longer runs a Codex review itself, and it never calls `/code-review`.
 Run `/codex:review` or `/code-review` yourself for a second opinion.
 
-The orchestrator is built for Claude Code's subagents and per-agent models. In
-Codex it currently falls back to an installed local-diff review skill, or to
+The orchestrator uses Claude Code's subagents or the OpenCode integration's
+`ship/review-*` subagents. OpenCode inherits the session model unless configured
+otherwise; it does not assume access to Claude model aliases. In Codex it
+currently falls back to an installed local-diff review skill, or to
 reviewing against the same reviewers' checklists itself; native Codex support
 is planned.
 
 ### pr-panel
+
+Available as a Claude Code mod and as part of the OpenCode integration. The
+OpenCode view uses a native session panel; **Fix** presents an editable preview
+and asks for explicit Send confirmation rather than replacing the composer.
 
 A live panel for the GitHub PRs a session opens. Any `gh pr create` the session
 runs (so `/ship` too), the current branch's open PR at session start, and any PR

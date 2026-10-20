@@ -5,7 +5,10 @@ with checks, reviews, unresolved review threads and comments, a one-line summary
 above the prompt, and buttons to enable auto-merge, merge, re-run failed checks,
 or hand a failure back to Claude.
 
-Claude Code only (it is a hooks module, not a skill). Requires an authenticated
+This directory contains the Claude Code adapter and shared core. The
+[OpenCode integration](../../packages/opencode/README.md) reuses the same polling,
+parsing, actions, and prompt logic with its own server and terminal adapters.
+This is not a skill. Requires an authenticated
 [`gh`](https://cli.github.com/) on the `PATH`; every GitHub call goes through it,
 so GitHub Enterprise works wherever `gh` is logged in.
 

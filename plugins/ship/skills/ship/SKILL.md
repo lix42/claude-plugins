@@ -16,6 +16,11 @@ Carry a finished change through verification, review, task completion, and
 publication. Invoking this workflow authorizes its normal outward
 actions, including pushing a branch and opening or updating a pull request.
 
+In OpenCode, load bundled skills with the `skill` tool using exact IDs:
+`ship`, `rebase`, `review-changes`, and `drive-pr`. Claude `ship:*` IDs below
+are not OpenCode IDs. Use the detected `task-tracking` skill to mark tasks
+done, and `/tasks-done` as the user-facing fallback command.
+
 Obey two hard rules:
 
 - Never continue past a failing quality gate. Fix it and rerun the gate; if an
@@ -61,21 +66,22 @@ to refresh configuration, do not ship anything:
 3. Re-detect every field using the documented procedure.
 4. Compare fields other than `detectedAt` and report `old → new` values. Treat
    any older or unknown schema version and invalid JSON as a full re-detection.
-5. Write the version-8 result to that same cache path and stop.
+5. Write the version-9 result to that same cache path and stop.
 
 ## Assess the change
 
 Read `config.md` before using cached values.
 
-1. Identify the runtime as Claude Code or Codex and select only its cache:
-   `.claude/ship.local.json` or `.codex/ship.local.json` respectively, inside the
+1. Identify the runtime as Claude Code, Codex, or OpenCode and select only its cache:
+   `.claude/ship.local.json`, `.codex/ship.local.json`, or
+   `.opencode/ship.local.json` respectively, inside the
    repository's main worktree. `config.md` gives the exact lookup.
-2. If that cache contains valid schema version 8 for the current host, use it.
+2. If that cache contains valid schema version 9 for the current host, use it.
    If it is missing, invalid, an older version, another version, or records
    another host, run complete detection and overwrite only the selected cache.
    Never read the other host's cache.
 3. On first detection, tell the user which cache was written and how to refresh
-   it: `/ship-config` in Claude Code or `$ship refresh config` in Codex.
+   it: `/ship-config` in Claude Code or OpenCode, or `$ship refresh config` in Codex.
 4. Read live state that must never be cached: the **live project facts** in
    `config.md` (`qualityGates` and `tasks.tasksFile`, from the current worktree),
    `git status`, the diff against the base branch, the current branch, worktree
@@ -141,7 +147,8 @@ request is never a reason to skip the review.
 When `tasks.tasksFile` is set and the current change clearly implements one task:
 
 - Invoke the exact `skills.taskCompletion` helper when set. For
-  `tasks:task-tracking`, request its **Mark a task started or done** operation.
+  `tasks:task-tracking` (or `task-tracking` in OpenCode), request its
+  **Mark a task started or done** operation.
 - Otherwise, if the task files carry frontmatter (they open with `---` and a
   `status:` line), the plan belongs to the `tasks` CLI: its `TASKS.md` is generated,
   and editing either by hand leaves the index stale. **Skip task completion** and

@@ -12,6 +12,9 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep, Task, Skill
 
 # Drive PR
 
+In OpenCode, load bundled workflows with the `skill` tool using exact IDs
+`ship`, `review-changes`, and `rebase`, not Claude's `ship:*` names below.
+
 Carry an open pull request to green: checks passing, branch current with its
 base, and review feedback handled. Invoking this workflow authorizes its normal
 outward actions on that pull request: pushing to its branch, replying to its
