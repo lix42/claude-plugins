@@ -1,6 +1,6 @@
 {
   "name": "opencode-lix42",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Tasks, shipping workflows, and a live PR panel for OpenCode V2",
   "repository": { "type": "git", "url": "git+https://github.com/lix42/claude-plugins.git" },
   "type": "module",
@@ -10,7 +10,7 @@
   },
   "files": ["index.ts", "tui.tsx", "packages/opencode/src", "packages/opencode/dist", "packages/opencode/README.md", "plugins/tasks/skills", "plugins/ship/skills", "plugins/ship/agents", "plugins/pr-panel/README.md", "plugins/pr-panel/hooks", "plugins/pr-panel/types"],
   "scripts": {
-    "build": "node packages/opencode/scripts/build-tui.mjs",
+    "build:tui": "node packages/opencode/scripts/build-tui.mjs",
     "check:build": "node packages/opencode/scripts/build-tui.mjs --check",
     "test": "npm run check:build && bun test --conditions=browser --preload @opentui/solid/preload packages/opencode/test",
     "typecheck": "tsc -p packages/opencode"

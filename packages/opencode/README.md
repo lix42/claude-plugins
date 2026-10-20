@@ -183,7 +183,7 @@ Only the terminal UI is currently provided—there is no custom web/desktop pane
 
 ```sh
 npm ci --ignore-scripts
-npm run build
+npm run build:tui
 npm run typecheck
 npm test
 node --test 'plugins/tasks/skills/task-tracking/cli/test/*.test.ts'
@@ -214,8 +214,16 @@ The terminal entrypoint is **precompiled Solid/OpenTUI JavaScript** in
 publishing raw `.tsx` would fall back to React's JSX runtime. Adding React or only
 shipping a tsconfig is not the fix.
 
-After editing `src/tui.tsx`, run `npm run build` and commit the generated files in
+After editing `src/tui.tsx`, run `npm run build:tui` and commit the generated files in
 `dist/`. They are included in the package, so users need no build or installation
 lifecycle scripts. The root forwarding entrypoints also support directory-based
 development loading. Shared files remain in `plugins/`; adapters and tests live
 here. Do not duplicate workflows into host-specific skill copies.
+
+Keep the command named `build:tui`, **not `build`**. npm treats an exact `build`
+script (as well as `prepare`, `prepack`, `preinstall`, `install`, `postinstall`,
+or `workspaces`) as a trigger for Git-dependency preparation. That unnecessary
+preparation fails in OpenCode's bundled installer. Since `dist/` is committed,
+Git installs and updates must only consume the prebuilt files. Do not add those
+preparation triggers to the package. See npm's
+[Git dependency documentation](https://docs.npmjs.com/cli/v11/configuring-npm/package-json#git-urls-as-dependencies).

@@ -9,6 +9,19 @@ import { asset, root } from '../src/content.ts'
 
 const run = promisify(execFile)
 
+test('prebuilt Git package never opts into npm dependency preparation', async () => {
+  const manifest = JSON.parse(await readFile(asset('package.json'), 'utf8')) as {
+    workspaces?: unknown
+    scripts: Record<string, string>
+  }
+  assert.equal(manifest.workspaces, undefined)
+  for (const trigger of ['build', 'prepare', 'prepack', 'preinstall', 'install', 'postinstall']) {
+    assert.equal(manifest.scripts[trigger], undefined, `${trigger} opts Git installs into unnecessary npm preparation`)
+  }
+  assert.equal(manifest.scripts['build:tui'], 'node packages/opencode/scripts/build-tui.mjs')
+  await readFile(asset('packages/opencode/dist/tui.js'), 'utf8')
+})
+
 test('packed node_modules TUI loads and renders with the host runtime, without a source JSX preload', async () => {
   const directory = await mkdtemp(join(process.env.OPENCODE_TEST_TMP ?? tmpdir(), 'lix42-tui-package-'))
   const packed = await run('npm', ['pack', '--ignore-scripts', '--json', '--pack-destination', directory], { cwd: root })
