@@ -7,12 +7,6 @@
   },
   "plugins": [
     {
-      "name": "eng-records",
-      "description": "Automatically records engineering sessions and generates review documents",
-      "source": "./plugins/eng-records",
-      "category": "productivity"
-    },
-    {
       "name": "tasks",
       "description": "Plan and track development work as per-task files with frontmatter status and dependencies, queried and updated by a bundled CLI that generates docs/TASKS.md, with optional epics for large plans",
       "source": "./plugins/tasks",
