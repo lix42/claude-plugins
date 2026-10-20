@@ -6,8 +6,9 @@ description: >-
   error handling, tests, conventions, types, docs), choose each one's model,
   run them in parallel, and merge their findings into one report. Use when the
   user invokes /review-changes, asks to review uncommitted work, "what I just
-  changed", or a branch's diff before a pull request exists. Ship, drive-pr,
-  and rebase use it for every review. Reports only; never edits or posts.
+  changed", or a branch's diff before a pull request exists. The
+  review-fix-loop skill runs it for every review it makes, including ship's,
+  drive-pr's, and rebase's. Reports only; never edits or posts.
 allowed-tools: Read, Bash, Glob, Grep, Task
 ---
 
@@ -26,6 +27,11 @@ Inputs, from the user or the calling workflow:
 - **Focus** (optional) — why this review runs, such as "a CI fix for the
   failing lint job" or "conflict resolutions from a rebase". Pass it to every
   reviewer so they judge the change against its intent.
+- **Context** (optional) — unchanged files or symbols outside the scope that
+  the change may affect, each with the reason, such as "calls `parseConfig`,
+  which now returns null on empty input". `review-fix-loop` passes these when a
+  fix changed a contract other code relies on. Reviewers read them to judge the
+  scope's effect; they are not part of the change.
 - **Reviewers** (optional) — a caller or user may name reviewers to run or
   skip, and may pin a model. Honor that over the selection rules below.
 
@@ -67,7 +73,8 @@ working-tree scope too (`wc -l` each), which `--stat` leaves out:
 
 - list the changed files and classify each: source, test, executable prose,
   documentation, config, lockfile, generated or vendored;
-- note the size bucket (small, normal, large);
+- note the size bucket (small, normal, large), counting the scope only, not
+  its context;
 - note which signals the added and removed lines carry;
 - find the project instruction files that apply (`CLAUDE.md` at the repository
   root and in the changed files' directories, `AGENTS.md` likewise).
@@ -101,7 +108,8 @@ pass an override with the Task tool's `model` parameter:
 
 - **Lower an opus reviewer to sonnet** when the scope is small and contains no
   concurrency, security, persistence, or cross-module contract change — a
-  typo-level CI fix does not need the strongest model.
+  typo-level CI fix does not need the strongest model. A scope that comes
+  with **Context** changed a contract by definition; never lower it.
 - **Raise a sonnet reviewer to opus** when its area is the heart of a large or
   subtle change: `review-types` on a new public API or data model,
   `review-error-handling` on transactions, retries, or partial-failure paths,
@@ -124,6 +132,7 @@ OpenCode, so they run concurrently. Give each the same brief:
 - the scope and the exact git commands that produce it, plus the untracked
   files in it, to be read whole;
 - the changed files, marking the ones its focus most concerns;
+- the context files, when given, each with its reason;
 - the project instruction files to read;
 - the caller's focus, when given.
 
@@ -159,7 +168,7 @@ When every reviewer has returned:
 ## 6. Report
 
 ```
-Scope: <scope> (<size>, <n> files)
+Scope: <scope> (<size>, <n> files) — context: <files, when given>
 Reviewers: review-bugs (opus), review-tests (sonnet), … — skipped: <name and why>
 
 ## Critical
@@ -184,38 +193,11 @@ the `Reviewers` line.
 
 ## Acting on the report
 
-This workflow stops at the report. A caller that fixes what it found — `ship`,
-`drive-pr`, `rebase`, or the user asking for fixes — works through it this way:
-
-1. **Snapshot the reviewed state** before editing anything, so the fixes can
-   be told apart from the change they fix — no git command can when both sit
-   uncommitted in the same working tree. Record the working tree as a tree
-   object through a throwaway copy of the index, which leaves the real index
-   untouched. Seeding the copy keeps tracked files that match `.gitignore`:
-
-   ```bash
-   idx="$(mktemp -d)/index"; src="$(git rev-parse --git-path index)"; { [ ! -e "$src" ] || cp "$src" "$idx"; } && GIT_INDEX_FILE="$idx" git add -A && GIT_INDEX_FILE="$idx" git write-tree
-   ```
-
-   Keep the printed SHA as `<before>`. If the command fails or prints nothing,
-   fix the cause and rerun it; never fall back to an empty index, which drops
-   tracked files that match `.gitignore` and makes the later diff show them
-   as changes.
-2. Investigate every finding. Fix the warranted ones and state why any is
-   declined.
-3. Rerun the quality gates the fixes could affect.
-4. Re-review only the fixes. Run the same command again for `<after>`, and
-   invoke this workflow with `git diff <before> <after>` as the scope and, as
-   **Reviewers**, the reviewers whose findings were fixed — plus `review-bugs`
-   whenever a fix changed code or executable prose, since a fix for any
-   finding can introduce a bug.
-5. For a second round, take `<after>` as the new `<before>` and repeat from
-   step 2. Stop after two re-review rounds rather than looping.
-6. **Open findings block.** A critical or important finding still open after
-   the last round — neither fixed nor declined with a reason — blocks the
-   caller's next commit, push, or publish. Stop and put it to the user with
-   what was tried. Open minor findings do not block; list them in the
-   caller's summary.
+This workflow stops at the report. A caller that fixes what it found — the
+user asking for fixes, or `ship`, `drive-pr`, and `rebase` — uses the
+`review-fix-loop` skill bundled with this plugin, which runs this workflow for
+the first review and for every re-review, and decides how far each round of
+fixes reaches.
 
 ## Codex
 
@@ -225,7 +207,10 @@ relative to this file and use the current host's cache as it describes —
 reusing what a calling workflow already loaded — then invoke the exact
 `skills.localReview` skill when the cache records one and it is not this
 skill (a cache that records `review-changes` is wrong; ignore it and tell the
-user to refresh the config), scoped as above;
-otherwise critically review the scope yourself against the focus of each
-reviewer **3. Select reviewers and models** would choose, reading their agent
-files in `../../agents/` as checklists, and report in the format above.
+user to refresh the config), scoped as above, with any context in the
+request. That skill may not take context, so then review the context files
+yourself against the same checklists as below, and merge what you find into
+its report. Otherwise critically review the scope yourself against the focus
+of each reviewer **3. Select reviewers and models** would choose, reading their
+agent files in `../../agents/` as checklists, and report in the format
+above.

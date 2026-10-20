@@ -91,8 +91,9 @@ In OpenCode, `skills.localReview` is also `null`: load the bundled
 `review-changes` skill by its exact ID. For task completion prefer the installed
 `task-tracking` skill. Discover publishing, CI repair, and review-feedback helpers
 by their descriptions in the live skills list, otherwise use `null` and the
-built-in fallbacks. Never select `ship`, `rebase`, `drive-pr`, or
-`review-changes` as optional helpers: that would recurse into these workflows.
+built-in fallbacks. Never select `ship`, `rebase`, `drive-pr`,
+`review-fix-loop`, or `review-changes` as optional helpers: that would recurse
+into these workflows.
 Do not assume Claude namespaced IDs exist in OpenCode.
 
 ## Live project facts
@@ -158,8 +159,8 @@ finishes. Do not narrate every probe.
 
    In Codex, `review-changes` cannot launch its reviewer agents yet, so detect a
    review skill for it to delegate to. Never record this plugin's own
-   `review-changes` — it matches the description best, and recording it makes
-   `review-changes` invoke itself. Accept a skill
+   `review-changes` or `review-fix-loop` — they match the description best, and
+   recording either makes `review-changes` recurse into itself. Accept a skill
    only when its description clearly matches local code/diff review. Do not select
    one merely because “review” appears in its publisher or name, and do not
    repurpose CI-repair or review-comment skills as local review. If several

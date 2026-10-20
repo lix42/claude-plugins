@@ -77,12 +77,12 @@ with (directory / "server.stderr").open("w") as log:
         else:
             raise RuntimeError(f"Plugin did not activate: {api('get', '/api/plugin')}")
         expected = {
-            "/api/skill": {"task-tracking", "start-task", "ship", "drive-pr", "rebase", "review-changes"},
+            "/api/skill": {"task-tracking", "start-task", "ship", "drive-pr", "rebase", "review-changes", "review-fix-loop"},
             "/api/agent": {"ship/review-bugs", "ship/review-security", "ship/review-error-handling",
                            "ship/review-tests", "ship/review-conventions", "ship/review-types",
                            "ship/review-docs", "ship/rebase-scout"},
             "/api/command": {"tasks-setup", "tasks-next", "tasks-update", "tasks-done", "tasks-group",
-                             "tasks-migrate", "start-task", "ship", "ship-config", "drive-pr", "rebase", "review-changes"},
+                             "tasks-migrate", "start-task", "ship", "ship-config", "drive-pr", "rebase", "review-changes", "review-fix-loop"},
         }
         for path, required in expected.items():
             entries = api("get", path)["data"]

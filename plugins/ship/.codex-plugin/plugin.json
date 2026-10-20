@@ -1,6 +1,6 @@
 {
   "name": "ship",
-  "version": "0.8.1",
+  "version": "0.9.0",
   "description": "Verify, review, and publish a finished coding change without merging its pull request.",
   "author": {
     "name": "lix42",
@@ -18,7 +18,7 @@
   "interface": {
     "displayName": "Ship",
     "shortDescription": "Verify and publish finished coding changes",
-    "longDescription": "Rebase onto the base branch, run project quality gates, review the diff, update task status, publish a pull request, and drive checks and feedback to green. $drive-pr runs the same stabilization on any open pull request, and $rebase brings a branch up to date with its base, adapting the change to what landed upstream.",
+    "longDescription": "Rebase onto the base branch, run project quality gates, review the diff, update task status, publish a pull request, and drive checks and feedback to green. $drive-pr runs the same stabilization on any open pull request, and $rebase brings a branch up to date with its base, adapting the change to what landed upstream. $review-fix-loop reviews a local change, fixes the findings, and re-reviews the fixes.",
     "developerName": "lix42",
     "category": "Productivity",
     "capabilities": [
@@ -31,6 +31,7 @@
       "Use $ship to verify and publish my finished change.",
       "Use $drive-pr to drive this pull request to green.",
       "Use $rebase to bring this branch up to date with main.",
+      "Use $review-fix-loop to review my change and fix what it finds.",
       "Use $ship refresh config to re-detect this repository's workflow."
     ]
   }

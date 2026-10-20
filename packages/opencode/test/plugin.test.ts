@@ -29,8 +29,8 @@ function fake(config: Record<string, unknown> = {}) {
 test('plugin registers skills, commands, and agents without writing config', async () => {
   const runtime = fake()
   await plugin.setup(runtime.ctx)
-  assert.equal(runtime.skills.length, 6)
-  assert.equal(runtime.commands.length, 12)
+  assert.equal(runtime.skills.length, 7)
+  assert.equal(runtime.commands.length, 13)
   assert.equal(runtime.agents.size, 8)
   const reviewer = runtime.agents.get('ship/review-bugs')!
   assert.equal(reviewer.mode, 'subagent')
@@ -81,7 +81,7 @@ test('ship can be disabled and model overrides apply only when configured', asyn
   assert.equal(tasks.commands.length, 7)
   const ship = fake({ tasks: false, models: { 'review-bugs': 'openai/reviewer#high' } })
   await plugin.setup(ship.ctx)
-  assert.equal(ship.commands.length, 5)
+  assert.equal(ship.commands.length, 6)
   assert.equal(ship.agents.get('ship/review-bugs')!.model?.id, 'reviewer')
   assert.equal(ship.agents.get('ship/review-bugs')!.model?.variant, 'high')
 })

@@ -13,7 +13,8 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep, Task, Skill
 # Drive PR
 
 In OpenCode, load bundled workflows with the `skill` tool using exact IDs
-`ship`, `review-changes`, and `rebase`, not Claude's `ship:*` names below.
+`ship`, `review-fix-loop`, `review-changes`, and `rebase`, not Claude's
+`ship:*` names below.
 
 Carry an open pull request to green: checks passing, branch current with its
 base, and review feedback handled. Invoking this workflow authorizes its normal
@@ -90,24 +91,26 @@ resolutions and adaptations are reviewed by the `rebase` skill itself (see
 1. Leave the fix uncommitted, then run every non-null `qualityGates` command it
    could affect. A gate already passed against identical code in this session
    need not be repeated.
-2. Review it with the `review-changes` skill bundled with this plugin —
-   `ship:review-changes` through the Skill tool in Claude Code,
-   `$review-changes` in Codex, or `../review-changes/SKILL.md` relative to this
-   file when neither can be invoked — scoped to the working tree, so reviewers
-   judge the fix rather than re-reviewing the whole branch. Give it the fix's
-   focus: the failing check or the review comments it answers.
-3. Act on the report as its **Acting on the report** section describes. Then
-   commit and push — unless a critical or important finding is still open,
-   which blocks the push until the user decides.
+2. Review it with the `review-fix-loop` skill bundled with this plugin —
+   `ship:review-fix-loop` through the Skill tool in Claude Code,
+   `$review-fix-loop` in Codex, or `../review-fix-loop/SKILL.md` relative to
+   this file when neither can be invoked — scoped to the working tree, so
+   reviewers judge the fix rather than re-reviewing the whole branch; the loop
+   widens a re-review to the code a fix could affect when it needs to. Give it
+   the fix's focus: the failing check or the review comments it answers, and
+   as **Declined** the review comments this round declined, with their reasons.
+3. Then commit and push — unless the loop left a critical or important finding
+   open, which blocks the push until the user decides.
 
 Batch the fixes for one round (every accepted comment, or every failing check)
 into a single review and a single push, rather than one cycle per fix. Honor
 the repository's commit conventions, and stage only the fix.
 
 A helper may commit and push on its own before this workflow can review. When
-`ciRepair` or `reviewFeedback` has already pushed an unreviewed change, review
-the pushed commits (`git diff <commit before the helper>..HEAD`) and push any
-fixes the review warrants.
+`ciRepair` or `reviewFeedback` has already pushed an unreviewed change, run
+`review-fix-loop` on the pushed commits (`git diff <commit before the
+helper>..HEAD`) and push the fixes it leaves — unless it left a critical or
+important finding open, which blocks the push as in step 3.
 
 ## Loop
 

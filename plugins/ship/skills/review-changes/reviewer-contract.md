@@ -16,6 +16,11 @@ live here, so the orchestrator can merge every reviewer's report mechanically.
   git commands that produce it. Use them verbatim. Never widen to unrelated
   files or history. If the scope is empty or cannot be resolved (missing base,
   not a git repository), say so and stop.
+- **Judge the context against the scope.** The brief may list context files:
+  unchanged code that relies on something the scope changed, each with the
+  reason. Read each one and report what the scoped change breaks there — a
+  caller the new contract no longer fits, a test that no longer holds. Never
+  report a context file's pre-existing problems; it is not part of the change.
 
 ## Process
 
