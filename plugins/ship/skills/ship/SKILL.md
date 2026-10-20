@@ -17,9 +17,9 @@ publication. Invoking this workflow authorizes its normal outward
 actions, including pushing a branch and opening or updating a pull request.
 
 In OpenCode, load bundled skills with the `skill` tool using exact IDs:
-`ship`, `rebase`, `review-changes`, and `drive-pr`. Claude `ship:*` IDs below
-are not OpenCode IDs. Use the detected `task-tracking` skill to mark tasks
-done, and `/tasks-done` as the user-facing fallback command.
+`ship`, `rebase`, `review-fix-loop`, `review-changes`, and `drive-pr`. Claude
+`ship:*` IDs below are not OpenCode IDs. Use the detected `task-tracking` skill
+to mark tasks done, and `/tasks-done` as the user-facing fallback command.
 
 Obey two hard rules:
 
@@ -37,8 +37,10 @@ Inputs, from the user or the calling workflow:
 
 - **`--skip-gates`** — the caller already ran this repository's `qualityGates`
   commands, green, against the change as it stands. Skip step 2.
-- **`--skip-review`** — the caller already ran this plugin's `review-changes`
-  skill on the change as it stands and acted on its report. Skip step 3. Another
+- **`--skip-review`** — the caller already ran this plugin's `review-fix-loop`
+  skill on the change as it stands, and it left no critical or important
+  finding open. Skip step 3. A bare `review-changes` run counts only when its
+  report had no findings, since fixes made after it went unreviewed. Another
   reviewer — `/code-review`, `/codex:review`, a human — is not the same review
   and does not count: when that is what the caller ran, run step 3 anyway.
 
@@ -48,7 +50,7 @@ step anyway and tell the user why — when:
 - the rebase in step 1 integrated upstream commits or adapted the change, since
   the code being shipped is no longer the code that was checked; or
 - this workflow changes code before publishing, such as a gate fix after a
-  skipped review: review that new code with `review-changes`, and rerun every
+  skipped review: review that new code with `review-fix-loop`, and rerun every
   gate it could affect.
 
 The skips cover steps 2 and 3 only. The pre-publish rebase in step 5 and
@@ -128,18 +130,20 @@ Skip this step under `--skip-review` unless the skip has lapsed (see the inputs
 above).
 
 This step reviews the working change and runs before any commit or pull request.
-Invoke the `review-changes` skill bundled with this plugin —
-`ship:review-changes` through the Skill tool in Claude Code, `$review-changes` in
-Codex — scoped to the working tree while the change is uncommitted, or once it
+Invoke the `review-fix-loop` skill bundled with this plugin —
+`ship:review-fix-loop` through the Skill tool in Claude Code, `$review-fix-loop`
+in Codex — scoped to the working tree while the change is uncommitted, or once it
 is committed to `git diff <target>...HEAD`, where `<target>` is the target ref
 the rebase in step 1 resolved (`<remote>/<base>` when a GitHub remote exists).
 A local base branch can be missing or stale, which would pull upstream commits
 into the review. If the skill
-cannot be invoked, read `../review-changes/SKILL.md` relative to this file and
+cannot be invoked, read `../review-fix-loop/SKILL.md` relative to this file and
 follow it directly.
 
-It selects the reviewers and their models and returns one merged report. Act on
-the report as its **Acting on the report** section describes. A missing pull
+It reviews the change with `review-changes`, fixes the warranted findings, and
+re-reviews each round of fixes — widening the review to code a fix could affect
+— until it converges or reaches its round cap. A critical or important finding
+it leaves open blocks this workflow: stop and put it to the user. A missing pull
 request is never a reason to skip the review.
 
 ## 4. Complete a tracked task
@@ -213,7 +217,7 @@ plugin — `ship:drive-pr` through the Skill tool in Claude Code, `$drive-pr` in
 Codex — with its number and `--mark-ready`, since a draft from step 5 is this
 workflow's intermediate state rather than the user's choice. It watches checks,
 rebases with the `rebase` skill when the branch falls behind, reviews every fix
-with the `review-changes` skill before pushing it, and replies to and resolves
+with the `review-fix-loop` skill before pushing it, and replies to and resolves
 review threads. If the skill cannot be invoked, read `../drive-pr/SKILL.md`
 relative to this file and follow it directly.
 
@@ -241,7 +245,8 @@ Report the resulting default-branch commit.
 
 Summarize the rebases (upstream commits integrated, impact, and any adaptation),
 the gates that passed, review outcome (the reviewers run with their models,
-findings fixed and declined), task updates, and publication result. For
+the re-review rounds and their scopes, findings fixed and declined), task
+updates, and publication result. For
 GitHub, include the PR URL, green status, the review threads replied to and
 resolved, and whether it was marked ready for review; remind the user that the
 final merge remains theirs. For no-remote integration, include the resulting

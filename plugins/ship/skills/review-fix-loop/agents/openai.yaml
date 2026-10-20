@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review-fix loop"
+  short_description: "Review a local change, fix the findings, and re-review the fixes"
+  default_prompt: "Use $review-fix-loop to review my change, fix what it finds, and re-review the fixes."

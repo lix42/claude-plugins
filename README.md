@@ -199,7 +199,7 @@ optional helper skills installed in the current session:
 2. **Quality gates** — discover and run the project's type-check / test / build /
    lint commands and fix any failures (never ships past a red gate).
 3. **Code review** — reviews the local change before anything is committed, via
-   `review-changes` (below), then fixes the warranted findings and re-reviews
+   `review-fix-loop` (below), which fixes the warranted findings and re-reviews
    the fixes. No open PR is required.
 4. **Task** — if `docs/TASKS.md` exists and the session worked a task, marks it
    done with the host's task helper (`/tasks:tasks-done` in Claude Code). Without
@@ -218,7 +218,8 @@ optional helper skills installed in the current session:
 
 A caller that already did steps 2 or 3 can pass `--skip-gates` or
 `--skip-review` (`/ship --skip-review`). `--skip-review` counts only a
-`review-changes` run, not `/code-review` or another reviewer. Either skip lapses
+`review-fix-loop` run that left no critical or important finding open, or a
+`review-changes` run with no findings — not `/code-review` or another reviewer. Either skip lapses
 when the rebase in step 1 pulls in upstream commits or later code changes, and
 the PR-time rebase and `drive-pr` still verify their own changes.
 
@@ -271,9 +272,9 @@ reviewed like any other fix. It never pushes.
 
 Reviews a local change — uncommitted work, or a branch's diff against its base —
 with specialized reviewer agents, and reports one merged list of findings. Run
-`/review-changes [base|range] [focus]` in Claude Code; `ship`, `drive-pr`, and
-`rebase` use it for every review. It only reports: it never edits, commits, or
-comments on GitHub.
+`/review-changes [base|range] [focus]` in Claude Code; `review-fix-loop` runs it
+for every review, so `ship`, `drive-pr`, and `rebase` use it too. It only
+reports: it never edits, commits, or comments on GitHub.
 
 It works as an orchestrator. It resolves the scope, profiles the change (files,
 size, and signals such as error handling, security-sensitive code, or new types
@@ -304,6 +305,34 @@ otherwise; it does not assume access to Claude model aliases. In Codex it
 currently falls back to an installed local-diff review skill, or to
 reviewing against the same reviewers' checklists itself; native Codex support
 is planned.
+
+#### review-fix-loop
+
+Reviews a local change with `review-changes`, fixes what it finds, and
+re-reviews the fixes. Run `/review-fix-loop [base|range] [focus] [--rounds <n>]`
+in Claude Code (`$review-fix-loop` in Codex); `ship`, `drive-pr`, and `rebase`
+use it for every review. It edits the working tree only: it never commits,
+pushes, or comments on GitHub, and leaves the fixes uncommitted for you.
+
+Each finding is checked against the code before it is fixed, and false
+positives are dropped with the reason. After each round of fixes the loop
+decides how far the fixes reach, and so what the next review covers:
+
+| A fix that is… | For example | Next review covers |
+|---|---|---|
+| Contained | a private rename, a typo, a comment, an added test | the fix's diff |
+| Contract | a changed signature, return value, error, config key, or shared name | the fix's diff plus the unchanged code that relies on it — callers, tests, docs |
+| Rework | a different approach, or a large fix | the whole original scope again, plus the unchanged code outside it that relies on a changed contract |
+
+Findings you or the caller declined, and false positives already rejected, are
+passed to every review so they are not raised again.
+
+It stops when a review finds nothing, or after 3 re-reviews (`--rounds` changes
+the cap). Findings from the re-review at the cap are left open rather than fixed
+without a review. A new critical finding that holds up resets the count; a
+critical finding that comes back after its fix stops the loop for you, as does
+any critical or important finding still open at the end. Resets never take it
+past twice the cap.
 
 ### pr-panel
 

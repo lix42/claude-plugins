@@ -20,7 +20,7 @@
     },
     {
       "name": "ship",
-      "description": "Finish a coding task and ship it: rebase, quality gates, code review, mark task done, then open a PR and drive it to green (or merge back linearly); /drive-pr drives any open PR to green; /rebase rebases and adapts to the base; /review-changes reviews a local change with specialized agents",
+      "description": "Finish a coding task and ship it: rebase, quality gates, code review, mark task done, then open a PR and drive it to green (or merge back linearly); /drive-pr drives any open PR to green; /rebase rebases and adapts to the base; /review-changes reviews a local change with specialized agents; /review-fix-loop fixes the findings and re-reviews the fixes",
       "source": "./plugins/ship",
       "category": "productivity"
     },

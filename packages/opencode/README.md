@@ -40,6 +40,7 @@ instructions require the integration files to have landed on the chosen revision
 | `/drive-pr [number\|url]` | `drive-pr` |
 | `/rebase [base]` | `rebase` |
 | `/review-changes [scope]` | `review-changes` |
+| `/review-fix-loop [scope]` | `review-fix-loop` |
 | `/pr [url\|number\|untrack\|agent on\|agent off]` | Native terminal command, not an agent skill |
 
 Commands attach the registered skill and preserve arguments and file attachments.

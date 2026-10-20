@@ -6,9 +6,9 @@ import { agents, asset, markdown, skills } from '../src/content.ts'
 import { commands, commandText } from '../src/commands.ts'
 import { options } from '../src/options.ts'
 
-test('all six skills load with their own supporting files', async () => {
+test('all seven skills load with their own supporting files', async () => {
   const bundled = await skills(options({}))
-  assert.deepEqual(bundled.map(skill => skill.id).sort(), ['drive-pr', 'rebase', 'review-changes', 'ship', 'start-task', 'task-tracking'])
+  assert.deepEqual(bundled.map(skill => skill.id).sort(), ['drive-pr', 'rebase', 'review-changes', 'review-fix-loop', 'ship', 'start-task', 'task-tracking'])
   assert.equal(bundled.find(skill => skill.id === 'start-task')?.autoinvoke, false)
   for (const skill of bundled) {
     assert.ok(skill.description)
@@ -35,7 +35,7 @@ test('frontmatter uses YAML folded descriptions and preserves the body', () => {
 })
 
 test('commands have unique names and preserve arguments literally', () => {
-  assert.equal(new Set(commands.map(item => item[0])).size, 12)
+  assert.equal(new Set(commands.map(item => item[0])).size, 13)
   const args = 'parser --skip-review $(touch should-not-exist)'
   assert.ok(commandText('Run the workflow.', args).endsWith(args))
 })

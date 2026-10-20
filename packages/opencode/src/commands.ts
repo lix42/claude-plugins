@@ -11,6 +11,7 @@ export const commands = [
   ['drive-pr', 'ship', 'drive-pr', 'Drive the specified or current PR to green. Never merge it.'],
   ['rebase', 'ship', 'rebase', 'Rebase onto the specified or detected base. Never push.'],
   ['review-changes', 'ship', 'review-changes', 'Review the local change and report findings only; do not edit or publish.'],
+  ['review-fix-loop', 'ship', 'review-fix-loop', 'Review the local change, fix the findings, and re-review the fixes; leave them uncommitted and never publish.'],
 ] as const
 
 export function commandText(instruction: string, args: string) {

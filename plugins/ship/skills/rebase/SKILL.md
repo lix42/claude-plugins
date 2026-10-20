@@ -13,8 +13,8 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep, Task, Skill
 
 # Rebase
 
-In OpenCode, load `ship`, `review-changes`, and `rebase` by exact ID using the
-`skill` tool; Claude's `ship:*` names below do not apply.
+In OpenCode, load `ship`, `review-fix-loop`, `review-changes`, and `rebase` by
+exact ID using the `skill` tool; Claude's `ship:*` names below do not apply.
 
 Bring the current branch up to date with its base without losing what either
 side meant. A rebase can be conflict-free and still leave the change wrong —
@@ -124,15 +124,16 @@ covers the uncommitted adaptations.
    code under the branch even when no conflict did. Fix failures and rerun until
    green; never leave the branch past a failing gate.
 2. When a conflict was resolved by hand or an adaptation was made, review the
-   result with the `review-changes` skill bundled with this plugin —
-   `ship:review-changes` through the Skill tool in Claude Code,
-   `$review-changes` in Codex, or `../review-changes/SKILL.md` relative to this
-   file when neither can be invoked. Scope it to cover everything the rebase
-   touched: the working tree for uncommitted adaptations, the diff against the
-   target ref for conflict resolutions that landed in rebased commits, and both
-   scopes when both exist; give "conflict resolutions and adaptations from a
-   rebase onto `<base>`" as its focus. Act on the report as its **Acting on the
-   report** section describes.
+   result with the `review-fix-loop` skill bundled with this plugin —
+   `ship:review-fix-loop` through the Skill tool in Claude Code,
+   `$review-fix-loop` in Codex, or `../review-fix-loop/SKILL.md` relative to
+   this file when neither can be invoked. Scope it to cover everything the
+   rebase touched: the working tree for uncommitted adaptations, the diff
+   against the target ref for conflict resolutions that landed in rebased
+   commits, and both scopes when both exist; give "conflict resolutions and
+   adaptations from a rebase onto `<base>`" as its focus. A critical or
+   important finding the loop leaves open stops the rebase here: put it to the
+   user.
 
 ## Finish
 
