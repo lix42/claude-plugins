@@ -1,0 +1,39 @@
+{
+  "name": "opencode-lix42",
+  "version": "0.1.0",
+  "description": "Tasks, shipping workflows, and a live PR panel for OpenCode V2",
+  "repository": { "type": "git", "url": "git+https://github.com/lix42/claude-plugins.git" },
+  "type": "module",
+  "exports": {
+    ".": "./packages/opencode/src/index.ts",
+    "./tui": "./packages/opencode/src/tui.tsx"
+  },
+  "files": ["index.ts", "tui.tsx", "packages/opencode/src", "packages/opencode/README.md", "plugins/tasks/skills", "plugins/ship/skills", "plugins/ship/agents", "plugins/pr-panel/README.md", "plugins/pr-panel/hooks", "plugins/pr-panel/types"],
+  "scripts": {
+    "test": "bun test --conditions=browser --preload @opentui/solid/preload packages/opencode/test",
+    "typecheck": "tsc -p packages/opencode"
+  },
+  "engines": { "node": ">=22.18.0" },
+  "dependencies": {
+    "@opencode/plugin": "^2.0.32",
+    "yaml": "^2.8.1"
+  },
+  "peerDependencies": {
+    "@opentui/core": ">=0.5.17",
+    "@opentui/solid": ">=0.5.17",
+    "solid-js": ">=1.9.0"
+  },
+  "devDependencies": {
+    "@opentui/core": "0.5.17",
+    "@opentui/solid": "0.5.17",
+    "solid-js": "1.9.12",
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0"
+  },
+  "peerDependenciesMeta": {
+    "@opentui/core": { "optional": true },
+    "@opentui/solid": { "optional": true },
+    "solid-js": { "optional": true }
+  },
+  "overrides": { "seroval": "^1.6.11" }
+}

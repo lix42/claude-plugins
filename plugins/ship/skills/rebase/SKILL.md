@@ -13,6 +13,9 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep, Task, Skill
 
 # Rebase
 
+In OpenCode, load `ship`, `review-changes`, and `rebase` by exact ID using the
+`skill` tool; Claude's `ship:*` names below do not apply.
+
 Bring the current branch up to date with its base without losing what either
 side meant. A rebase can be conflict-free and still leave the change wrong —
 upstream may have added the helper the branch reimplements, or a new caller the
@@ -73,7 +76,9 @@ Inputs, from the user or the calling workflow:
 
 In Claude Code, launch this plugin's `ship:rebase-scout` agent with the Task
 tool. Pass the base, the target ref, and whether the working-tree change may be
-stashed and restored. In Codex, or when the agent cannot be launched, read
+stashed and restored. In OpenCode, launch `ship/rebase-scout` with the `subagent`
+tool, inheriting its configured model rather than choosing a Claude model alias.
+In Codex, or when the agent cannot be launched, read
 `../../agents/rebase-scout.md` relative to this file and carry out its procedure
 directly.
 

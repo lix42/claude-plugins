@@ -14,6 +14,7 @@ skills. The host picks the cache's path inside a worktree:
 
 - Claude Code: `.claude/ship.local.json`
 - Codex: `.codex/ship.local.json`
+- OpenCode: `.opencode/ship.local.json`
 
 Read and write only the current host's cache. Never consult, copy, migrate, or
 delete the other host's cache. Create the selected parent directory when needed.
@@ -27,23 +28,24 @@ checked out. Resolve it live on every run:
 2. When that entry is marked `bare` (a bare repository has no working files),
    the root is the current worktree (`git rev-parse --show-toplevel`).
 
-The cache path is `<root>/.claude/ship.local.json` (or `<root>/.codex/…`). Use
+The cache path is `<root>/.claude/ship.local.json`, `<root>/.codex/ship.local.json`,
+or `<root>/.opencode/ship.local.json` for the selected host. Use
 that one path for reading and writing; never fall back to a cache in the current
 worktree when the root is elsewhere. If the current worktree, being a different
 one, holds its own copy of the host's cache — left from before caches were
 shared — ignore it and tell the user it is stale and safe to delete.
 
-Schema version 8 is the only recognized version. If the selected cache is absent,
-invalid JSON, or has any other `version` (including versions 1 through 7), ignore
+Schema version 9 is the only recognized version. If the selected cache is absent,
+invalid JSON, or has any other `version` (including versions 1 through 8), ignore
 all cached values and run the complete detection procedure. That is also the whole
-migration story: fresh detection followed by a version-8 write, never
+migration story: fresh detection followed by a version-9 write, never
 field-by-field conversion.
 
 ## Schema
 
 ```json
 {
-  "version": 8,
+  "version": 9,
   "detectedAt": "2026-07-22T10:30:00Z",
   "host": "codex",
   "environment": {
@@ -72,9 +74,9 @@ always reviews with the bundled `review-changes` skill:
 
 Field rules:
 
-- `version`: always `8`.
+- `version`: always `9`.
 - `detectedAt`: ISO-8601 UTC timestamp for the completed detection.
-- `host`: exactly `claude` or `codex`; it must match the selected cache path.
+- `host`: exactly `claude`, `codex`, or `opencode`; it must match the selected cache path.
 - `environment.hasGitHubRemote`: true only when a configured remote points to
   GitHub.
 - `environment.defaultBranch`: detected default branch name.
@@ -84,6 +86,14 @@ Field rules:
   plugin's own `review-changes` skill and its reviewer agents, which need no
   detection. In Codex it holds an installed local-diff review skill, or `null`;
   `review-changes` uses it there until the skill supports Codex directly.
+
+In OpenCode, `skills.localReview` is also `null`: load the bundled
+`review-changes` skill by its exact ID. For task completion prefer the installed
+`task-tracking` skill. Discover publishing, CI repair, and review-feedback helpers
+by their descriptions in the live skills list, otherwise use `null` and the
+built-in fallbacks. Never select `ship`, `rebase`, `drive-pr`, or
+`review-changes` as optional helpers: that would recurse into these workflows.
+Do not assume Claude namespaced IDs exist in OpenCode.
 
 ## Live project facts
 
@@ -95,8 +105,8 @@ them by these names.
 - **`qualityGates`** — exact commands for `typecheck`, `test`, `build`, and
   `lint`, or `null` when the project has no corresponding gate. Read project
   configuration such as `package.json`, a `Makefile`, and the host's applicable
-  instruction file (`CLAUDE.md` in Claude Code, the nearest `AGENTS.md` in
-  Codex). Record exact runnable commands, preferring single-run or CI variants
+   instruction file (`CLAUDE.md` in Claude Code, applicable `AGENTS.md` files in
+   Codex or OpenCode). Record exact runnable commands, preferring single-run or CI variants
   (`test:run` over a watch-mode `test`). Account for commands that subsume other
   gates, but record a gate's own command when one exists.
 - **`tasks.tasksFile`** — `docs/TASKS.md` when it exists in the current
@@ -130,6 +140,9 @@ finishes. Do not narrate every probe.
    | `ciRepair` | `null` | `github:gh-fix-ci` |
    | `reviewFeedback` | `null` | `github:gh-address-comments` |
 
+   For OpenCode use the choices described under **Field rules** above instead
+   of either column. Only record IDs present in this session's live skill list.
+
    Local review needs no detection in Claude Code. This plugin bundles its own
    orchestrator, the `review-changes` skill, which picks among the plugin's
    read-only `ship:review-*` agents and their models for each change. It is
@@ -160,7 +173,7 @@ finishes. Do not narrate every probe.
    reason to reject it or to skip it later because no pull request exists.
 
 4. **Write once.** Write valid, formatted JSON to the selected cache — at the
-   root resolved under **Host and location** — with version 8 and a fresh
+   root resolved under **Host and location** — with version 9 and a fresh
    timestamp. On an explicit refresh, compare all fields except
    `detectedAt` with the prior selected-host cache and report only changed values.
    An old or invalid schema is reported as a full re-detection, not as a partial
@@ -170,7 +183,7 @@ finishes. Do not narrate every probe.
 
 Missing helpers never block shipping:
 
-- `localReview`: in Claude Code the bundled `review-changes` skill is the
+- `localReview`: in Claude Code and OpenCode the bundled `review-changes` skill is the
   route, and it ships with the plugin, so there is nothing to fall back from. In
   Codex, when no review skill is recorded, `review-changes` reviews the scope
   itself against its reviewers' checklists. Self-review is the fallback for a

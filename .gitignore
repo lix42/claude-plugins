@@ -4,3 +4,8 @@ plugins/*/.claude-plugin/types/
 # Per-machine caches written by plugins (ship detection, local settings)
 .claude/*.local.json
 .codex/*.local.json
+.opencode/*.local.json
+
+node_modules/
+*.tgz
+__pycache__/

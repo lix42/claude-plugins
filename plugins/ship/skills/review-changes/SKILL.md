@@ -74,6 +74,12 @@ working-tree scope too (`wc -l` each), which `--stat` leaves out:
 
 ## 3. Select reviewers and models
 
+**OpenCode:** use the registered `ship/review-*` agents with the `subagent`
+tool, not Claude's Task tool. Unless the user explicitly requests a model,
+omit per-call model overrides: inherit the agent's configured model (or the
+parent model). The Opus/Sonnet rules below apply only to Claude Code. Users may
+configure OpenCode reviewer models with the integration's `models` option.
+
 Start from the registry's **Runs when** column, then apply these rules:
 
 - **Always at least one.** A non-empty scope with code, executable prose, or
@@ -111,7 +117,8 @@ with its model, marking overrides — for example
 ## 4. Launch in parallel
 
 Launch every selected reviewer in one message, as `ship:<agent>` subagents with
-the Task tool, so they run concurrently. Give each the same brief:
+the Task tool in Claude Code, or `ship/<agent>` with the `subagent` tool in
+OpenCode, so they run concurrently. Give each the same brief:
 
 - the path to `reviewer-contract.md` beside this file, which it must read first;
 - the scope and the exact git commands that produce it, plus the untracked
@@ -119,6 +126,14 @@ the Task tool, so they run concurrently. Give each the same brief:
 - the changed files, marking the ones its focus most concerns;
 - the project instruction files to read;
 - the caller's focus, when given.
+
+In OpenCode, the reviewer contract is already embedded in each registered
+reviewer's system instructions: do not ask them to read its packaged path again.
+Include the actual scoped diff inline, or a diff-file path inside the project or
+an already-approved directory, in each brief: reviewer agents deny shell execution
+as well as editing. They use read/glob/grep to inspect the diff, complete files, and callers.
+If the diff is too large, provide focused diff files without omitting any part
+of the selected scope across the reviewers.
 
 ## 5. Merge the findings
 

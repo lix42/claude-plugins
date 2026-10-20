@@ -28,6 +28,9 @@ user. When something already exists, stop and ask.
 
 The task is in `$ARGUMENTS`. If empty, ask which task.
 
+In OpenCode, take the task from the invoking message or command's user arguments;
+`$ARGUMENTS` is a command-template convention, not an environment variable.
+
 Resolve it with the task-tracking CLI
 (`node ${CLAUDE_PLUGIN_ROOT}/skills/task-tracking/cli/tasks.ts show <arg> --json`,
 or `cli/tasks.ts` in the task-tracking skill's directory where that variable isn't
@@ -140,6 +143,12 @@ If any `git worktree add` fails, show the error and stop — don't retry with
 `-f` or other flags the user didn't choose.
 
 ## 5. Switch into the worktree
+
+In OpenCode, use the available `session_move` tool with `directory: "$FOLDER"`
+(absolute), omitting `sessionID` to move the current session. If the tool is in
+Code Mode, discover it there first. Do not use a shell `cd` as a substitute for
+moving the session. When unavailable, use the explicit-path fallback below and
+tell the user that the session itself has not moved.
 
 In Claude Code, call `EnterWorktree` with `path: "$FOLDER"` (absolute). This
 moves the session into the worktree and reloads that directory's project

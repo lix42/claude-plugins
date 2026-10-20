@@ -23,13 +23,15 @@ is kept in two places by hand.
 
 ## The CLI
 
-`tasks` below means:
+`tasks` below means `node <this-skill-directory>/cli/tasks.ts <command>`.
+Use the absolute base directory supplied when this skill loads, not the project's
+working directory. In Claude Code the equivalent is:
 
 ```sh
 node ${CLAUDE_PLUGIN_ROOT}/skills/task-tracking/cli/tasks.ts <command>
 ```
 
-(In Codex, or wherever `${CLAUDE_PLUGIN_ROOT}` isn't set: `cli/tasks.ts` in this
+(In OpenCode, Codex, or wherever `${CLAUDE_PLUGIN_ROOT}` isn't set: `cli/tasks.ts` in this
 skill's directory.) It needs Node 22.18+ and nothing installed. It finds `docs/` by
 walking up to the git root; pass `--root <docs-dir>` otherwise. Add `--json` to any
 command for machine-readable output. `tasks help` lists everything.

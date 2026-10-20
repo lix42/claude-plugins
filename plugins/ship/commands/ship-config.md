@@ -6,14 +6,15 @@ user-invocable: true
 
 # /ship-config — Re-check and update the ship config
 
-The ship workflow caches its Claude Code environment as schema version 8 in
+The ship workflow caches its Claude Code environment as schema version 9 in
 `.claude/ship.local.json` so it doesn't re-detect stable facts every run. The cache
 lives in the repository's main worktree, so every worktree shares it; `ship` and
 `drive-pr` both read it. Quality gates and the task list are not cached — they
 are read from the current worktree every run. Run this command to refresh the
 cache after your environment changes — a remote was added or you
 installed/removed a helper plugin.
-Never read or modify the Codex cache at `.codex/ship.local.json`.
+Never read or modify the Codex cache at `.codex/ship.local.json` or the OpenCode
+cache at `.opencode/ship.local.json`.
 
 The cache location, schema, and detection procedure are defined in
 `${CLAUDE_PLUGIN_ROOT}/skills/ship/config.md` — read it and follow it.
@@ -22,7 +23,7 @@ Do this:
 
 1. **Locate and read the existing config** at `.claude/ship.local.json` in the
    worktree `config.md` selects, if present. Keep its
-   values in hand for comparison only when it is valid schema version 8 for the
+   values in hand for comparison only when it is valid schema version 9 for the
    `claude` host. Missing, invalid, older-version, and unknown-version caches
    require full re-detection rather than migration or a field-by-field diff.
 
