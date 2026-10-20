@@ -183,6 +183,7 @@ Only the terminal UI is currently provided—there is no custom web/desktop pane
 
 ```sh
 npm ci --ignore-scripts
+npm run build
 npm run typecheck
 npm test
 node --test 'plugins/tasks/skills/task-tracking/cli/test/*.test.ts'
@@ -194,6 +195,9 @@ npm pack --dry-run
 ```
 
 The OpenTUI tests require Bun; the Node requirement above is for the task CLI.
+`npm test` verifies that the committed TUI build is current, tests that build's
+rendering, and packs/extracts the package into `node_modules` for a separate-process
+load-and-render regression check without the source JSX preload.
 The smoke script creates a private server with isolated HOME/config/data and an
 in-memory database, checks registration and RPC without starting a model, and
 terminates that server. It leaves its temporary diagnostics directory in place.
@@ -204,7 +208,14 @@ checkout. Set `OPENCODE_TEST_TMP` to choose the diagnostic parent directory.
 Use `--git <git-package-target>` to exercise `opencode plugin add` itself inside
 the isolated configuration before running the same assertions.
 
-The package runs source TypeScript under OpenCode's loader and needs no build or
-installation lifecycle scripts. The two root forwarding entrypoints also support
-directory-based development loading. Shared files remain in `plugins/`; adapters
-and tests live here. Do not duplicate workflows into host-specific skill copies.
+The server and shared modules run source TypeScript under OpenCode's loader.
+The terminal entrypoint is **precompiled Solid/OpenTUI JavaScript** in
+`packages/opencode/dist/tui.js`: the host JSX transform skips `node_modules`, so
+publishing raw `.tsx` would fall back to React's JSX runtime. Adding React or only
+shipping a tsconfig is not the fix.
+
+After editing `src/tui.tsx`, run `npm run build` and commit the generated files in
+`dist/`. They are included in the package, so users need no build or installation
+lifecycle scripts. The root forwarding entrypoints also support directory-based
+development loading. Shared files remain in `plugins/`; adapters and tests live
+here. Do not duplicate workflows into host-specific skill copies.
