@@ -72,14 +72,16 @@ const resolvePlace = async ($: EngineInterface) => {
 const refreshName = async ($: EngineInterface) => {
   const ran = await $.process.run(nameCommand(await $.session.id()), { timeoutMs: 3_000 }).catch(() => null)
   const found = ran ? parseName(ran.stdout) : null
-  if (found === null || found === (await read($, name))) return
-  await update($, name, () => found)
-  await retitle($, found)
+  if (found !== null && found !== (await read($, name))) await update($, name, () => found)
+  // Even when the name stands, the tab may carry an older one (a name set before a reload).
+  await retitle($, (await read($, name)) ?? 'Session')
 }
 
-/** Retitles the pane's tab, when the pane is open: another open of it only retitles. */
+/** Retitles the pane's tab when it is open and titled otherwise: another open of it only retitles. */
 const retitle = async ($: EngineInterface, title: string) => {
-  if ((await $.ui.panes()).some(pane => pane.id === PANE)) void $.ui.open({ id: PANE, title })
+  const pane = (await $.ui.panes()).find(open => open.id === PANE)
+  // The width goes along: an open without it would ask for the default share again.
+  if (pane && pane.title !== title) await $.ui.open({ id: PANE, title, columns: PANE_COLUMNS })
 }
 
 const rebuild = async ($: EngineInterface) => {
@@ -358,8 +360,9 @@ export const register: Register = on => {
             const ran = await $.command
               .run({ command: 'rename', args: given })
               .catch((error: unknown) => ({ text: `Could not rename: ${String(error)}` }))
-            if (ran.text?.startsWith('Could not')) await update($, notice, () => ran.text ?? null)
-            else await update($, name, () => given)
+            if (ran.text?.startsWith('Could not')) return void (await update($, notice, () => ran.text ?? null))
+            await update($, name, () => given)
+            await retitle($, given)
           })(),
         pickColor: text =>
           void (async () => {

@@ -132,7 +132,13 @@ test('pressing the name opens an editor that renames the session and sets its co
     return {}
   })
   on('ui.scroll', () => ({}))
-  on('ui.panes', () => ({ value: [] }))
+  // The pane is open under the session's old name, as its tab shows.
+  on('ui.panes', () => ({ value: [{ id: 'session-compass', title: 'Old name', isShown: true, isFocused: false, isPlaced: true }] }))
+  const titles: string[] = []
+  on('ui.open', (_, e) => {
+    titles.push(e.title ?? '')
+    return { value: { isPlaced: true } }
+  })
 
   const pane = await $.ui.mount({
     plugin: 'session-compass',
@@ -148,6 +154,7 @@ test('pressing the name opens an editor that renames the session and sets its co
 
   await pane.input({ key: 'name-input', text: '  Release v2  ' })
   expect(renamed).toEqual(['Release v2'])
+  expect(titles).toContain('Release v2')
   expect(await pane.find({ type: 'Text', text: /^Release v2$/ })).toBeDefined()
 
   // Teal is the eleventh swatch: its hotkey, as Enter on it after Tab would.
