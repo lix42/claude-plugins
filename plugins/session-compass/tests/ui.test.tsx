@@ -219,3 +219,35 @@ test('a cancelled rewind keeps the history; /resume rebuilds it, with the resume
   expect(summarized).toHaveLength(1)
   expect(Object.values(store.get('summaries') as object)).toContain('Cleared a stale build cache.')
 })
+
+test('/clear keeps the ended conversation\'s color; /branch rebuilds the forked history', async ($, on) => {
+  let sessionId = 'sess-1'
+  on('session.messages', () => ({ value: ROWS }))
+  on('session.id', () => ({ value: sessionId }))
+  on('session.root', () => ({ value: '/src/app' }))
+  on('session.repo', () => ({ value: null }))
+  on('process.run', () => ok(''))
+  on('ui.panes', () => ({ value: [] }))
+  on('model.complete', () => ({ value: { isAnswered: true, text: 'Summary.', usage: USAGE } }))
+  on('session.end', () => ({ sessionId }) as never)
+  on('classic.SessionStart', () => ({}) as never)
+  const store = memoryStore(on)
+  store.set('colors', { 'sess-1': '#ec4899' })
+  const mount = () =>
+    $.ui.mount({ plugin: 'session-compass', surface: 'terminal', component: 'Pane', props: PANE_PROPS, requestId: 'session-compass', viewport: VIEWPORT })
+
+  await $.session.end({ reason: 'clear' } as never)
+  sessionId = 'sess-3'
+  await $.classic.SessionStart({ source: 'clear' } as never)
+  let pane = await mount()
+  expect(await pane.find({ type: 'Text', text: /^Unnamed session$/ })).toMatchObject({ props: { color: '#ec4899' } })
+  expect(await pane.find({ type: 'Text', text: /why is CI red/ })).toBeUndefined()
+  await pane.unmount()
+  expect(store.get('colors')).toMatchObject({ 'sess-3': '#ec4899' })
+
+  sessionId = 'sess-4'
+  await $.classic.SessionStart({ source: 'fork' } as never)
+  pane = await mount()
+  expect(await pane.find({ type: 'Text', text: /why is CI red/ })).toBeDefined()
+  await pane.unmount()
+})

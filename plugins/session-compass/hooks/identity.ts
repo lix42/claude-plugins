@@ -69,12 +69,18 @@ export const parseName = (grepOutput: string): string | null => {
   return given ?? generated
 }
 
-/** Finds the session's transcript and prints its title fields, one per line. */
+/**
+ * Finds the session's transcript and prints its title fields, one per line:
+ * the newest of each field, in the order they were written, so a /rename made
+ * long ago is not crowded out by later generated titles.
+ */
 export const nameCommand = (sessionId: string) => [
   'sh',
   '-c',
   'f=$(ls "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"/projects/*/"$1".jsonl 2>/dev/null | head -n 1); ' +
-    '[ -n "$f" ] && grep -o -E \'"(customTitle|agentName|aiTitle)":"([^"\\\\]|\\\\.)*"\' "$f" | tail -n 20',
+    '[ -n "$f" ] && grep -o -E \'"(customTitle|agentName|aiTitle)":"([^"\\\\]|\\\\.)*"\' "$f" | ' +
+    'awk -F\'"\' \'{ last[$2] = NR; line[NR] = $0 } END { for (k in last) print last[k] "\\t" line[last[k]] }\' | ' +
+    'sort -n | cut -f 2-',
   'sh',
   sessionId,
 ]

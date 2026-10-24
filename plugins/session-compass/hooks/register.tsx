@@ -51,13 +51,28 @@ const resolveAccent = async ($: EngineInterface) => {
   const index = Number((await $.store.get(STORE_NEXT)) ?? 0)
   const color = paletteAt(index)
   await $.store.set(STORE_NEXT, index + 1)
-  await $.store.set(STORE_COLORS, rememberColor(colors, id, color))
+  await keepColor($, id, color)
   return color
 }
 
-const setAccent = async ($: EngineInterface, color: string) => {
+/**
+ * Stores a session's color, merged into the map as it stands right before the
+ * write, so another session's entry written meanwhile is kept. The store has no
+ * compare-and-set: two writes in the same instant can still lose one.
+ */
+const keepColor = async ($: EngineInterface, sessionId: string, color: string) => {
+  const latest = ((await $.store.get(STORE_COLORS)) ?? {}) as Record<string, string>
+  await $.store.set(STORE_COLORS, rememberColor(latest, sessionId, color))
+}
+
+/** The color the store keeps for a session, or null. */
+const keptColor = async ($: EngineInterface, sessionId: string) => {
   const colors = ((await $.store.get(STORE_COLORS)) ?? {}) as Record<string, string>
-  await $.store.set(STORE_COLORS, rememberColor(colors, await $.session.id(), color))
+  return Object.hasOwn(colors, sessionId) ? colors[sessionId]! : null
+}
+
+const setAccent = async ($: EngineInterface, color: string) => {
+  await keepColor($, await $.session.id(), color)
   await update($, accent, () => color)
 }
 
@@ -120,13 +135,18 @@ const loadSummaries = async ($: EngineInterface) => {
   await update($, summaries, own => ({ ...kept, ...own }))
 }
 
-/** What the summary worker keeps between passes: the texts asked for, and whether a pass runs. */
-type Worker = { asked: Set<string>; isRunning: boolean }
+/** What the summary worker keeps between passes: the texts asked for, whether a pass runs, and whether another was asked for meanwhile. */
+type Worker = { asked: Set<string>; isRunning: boolean; isRerunWanted: boolean }
 
 /** Summarizes the finished long texts not summarized yet, one at a time, newest first. */
 const summarize = async ($: EngineInterface, worker: Worker) => {
-  if (worker.isRunning) return
+  if (worker.isRunning) {
+    // The running pass chose its batch before the new texts came: one more pass follows it.
+    worker.isRerunWanted = true
+    return
+  }
   worker.isRunning = true
+  worker.isRerunWanted = false
   let isChanged = false
   try {
     const batch = pendingSummaries(await read($, entries), await read($, summaries), worker.asked).slice(0, SUMMARY_BATCH)
@@ -143,6 +163,7 @@ const summarize = async ($: EngineInterface, worker: Worker) => {
     worker.isRunning = false
     if (isChanged) await $.store.set(STORE_SUMMARIES, await read($, summaries)).catch(() => undefined)
   }
+  if (worker.isRerunWanted) await summarize($, worker)
 }
 
 /** Whether the person left the pane at its end, and what the pane showed when it last followed it. */
@@ -174,7 +195,10 @@ const openPane = async ($: EngineInterface, follow: Follow) => {
 export const register: Register = on => {
   // Whether the terminal docks panes, seen while drawing; a module value, as drawing may not write state.
   let isFullscreen: boolean | undefined
-  const worker: Worker = { asked: new Set(), isRunning: false }
+  const worker: Worker = { asked: new Set(), isRunning: false, isRerunWanted: false }
+  // Module values outlive /clear, /resume and /branch, which reset every $.state value (a reload resets these instead):
+  // the conversation that ended, for its color, and whether the pane opened once in this window.
+  const held: { endedId: string | null; isOpenedOnce: boolean } = { endedId: null, isOpenedOnce: false }
   // A module value, so a reload starts it over and the first drawing follows the end again.
   const follow: Follow = { isAtEnd: true, lastContent: null }
 
@@ -198,26 +222,34 @@ export const register: Register = on => {
 
   // `/clear` and `/resume` end one conversation and start another in the same process.
   on('session.end', async ($, e, next) => {
-    if (e.reason === 'clear' || e.reason === 'resume') await resetConversation($)
+    if (e.reason === 'clear' || e.reason === 'resume') {
+      held.endedId = await $.session.id()
+      await resetConversation($)
+    }
     return next(e)
   }).catch(($, e, next) => next(e))
 
-  // The new conversation's start: `/clear` keeps the window's color, `/resume` takes the resumed session's.
-  on('classic.SessionStart', async ($, e, next) => {
+  // A new conversation in this window: /clear, /resume, or /branch (`fork`). Each reset every $.state
+  // value; /clear keeps the window's color, the others take the session's own and rebuild its history.
+  on('classic.SessionStart', { source: ['clear', 'resume', 'fork'] }, async ($, e, next) => {
     const started = await next(e)
+    await resetConversation($)
     if (e.source === 'clear') {
-      await setAccent($, await read($, accent))
-      await retitle($, 'Session')
-    } else if (e.source === 'resume') {
-      await resetConversation($)
-      await update($, accent, () => '')
-      void resolveAccent($).then(color => update($, accent, () => color))
+      // The state's accent is reset by now: the store holds the ended conversation's.
+      const kept = held.endedId ? await keptColor($, held.endedId) : null
+      await setAccent($, kept ?? (await resolveAccent($)))
+    } else {
+      await update($, accent, await resolveAccent($).then(color => () => color))
       await rebuild($)
-      await retitle($, 'Session')
-      void refreshName($)
-      void summarize($, worker)
     }
-    if (e.source === 'clear' || e.source === 'resume') void resolvePlace($).then(line => update($, place, () => line))
+    held.endedId = null
+    await retitle($, 'Session')
+    void refreshName($)
+    void resolvePlace($).then(line => update($, place, () => line))
+    // The summaries were reset too, and what was asked for before stands for nothing now.
+    worker.asked.clear()
+    await loadSummaries($)
+    void summarize($, worker)
     return started
   }).catch(($, e, next) => next(e))
 
@@ -234,7 +266,8 @@ export const register: Register = on => {
     }
     await update($, entries, list => addPrompt(list, prompt))
     // Opened by itself once, after the first prompt, and only where it docks beside the transcript.
-    if (isFullscreen === true && !(await read($, autoOpened))) {
+    if (isFullscreen === true && !held.isOpenedOnce && !(await read($, autoOpened))) {
+      held.isOpenedOnce = true
       await update($, autoOpened, () => true)
       void openPane($, follow)
     }
@@ -306,6 +339,9 @@ export const register: Register = on => {
       return { text: 'Session compass history rebuilt from the transcript.' }
     }
     if (verb !== '') return { text: `Unknown option "${verb}". Try /compass, /compass color <name|#hex|next> or /compass resync.` }
+    // A pane opened by hand uses up the automatic open: closed, it stays closed.
+    held.isOpenedOnce = true
+    await update($, autoOpened, () => true)
     return { text: await openPane($, follow) }
   }).catch(() => ({ text: 'session-compass: /compass failed; see the debug log.' }))
 

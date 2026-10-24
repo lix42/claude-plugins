@@ -33,7 +33,8 @@ This is not a skill: it is a hooks module, and it draws only in Claude Code.
 The pane opens by itself after the session's first prompt, when the terminal
 draws the fullscreen layout (where it docks beside the transcript). On the main
 screen it would sit above the prompt instead, so it waits for `/compass` there.
-Closing the pane keeps it closed for the session.
+Opening it by hand with `/compass` counts as that one open: once you close the
+pane it stays closed for the session.
 
 ## Going back to a prompt
 
@@ -72,8 +73,10 @@ alone.
 Each session gets the next color of an eight-color palette, so sessions opened
 one after another differ. The color is kept per session id, so a resumed
 session keeps its color, and `/clear` keeps it too (same window, new
-conversation). `/resume` into another session within the same window switches
-to that session's history, name and color.
+conversation). `/resume` into another session within the same window, or
+`/branch`, switches to that session's history, name and color. These commands
+reset the mod's session state, so the color, the history and the summaries are
+loaded again from the store and the transcript.
 
 Two sessions started in the same instant may get the same color (the store
 has no atomic counter); `/compass color next` sets one apart.
