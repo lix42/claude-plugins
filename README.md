@@ -28,7 +28,8 @@ Then enable individual plugins under `enabledPlugins`:
   "enabledPlugins": {
     "tasks@lix42": true,
     "ship@lix42": true,
-    "pr-panel@lix42": true
+    "pr-panel@lix42": true,
+    "session-compass@lix42": true
   }
 }
 ```
@@ -44,7 +45,7 @@ codex plugin add tasks@lix42
 codex plugin add ship@lix42
 ```
 
-`pr-panel` is not available in Codex: it needs a host UI integration, not a skill.
+`pr-panel` and `session-compass` are not available in Codex: they need a host UI integration, not a skill.
 
 ### OpenCode V2
 
@@ -364,3 +365,24 @@ how polling works.
 | `/pr` | Open the panel |
 | `/pr <url\|number>` | Track a PR; a number resolves against the repo of the PR shown, or the current branch's |
 | `/pr untrack` | Stop tracking the PR shown |
+
+### session-compass
+
+A Claude Code mod for working in several sessions at once. A pane beside the
+chat shows the session's name (from `/rename`, else Claude Code's generated
+title), its repo and branch, and its history (newest at the bottom): prompts with slash
+commands highlighted, and responses with the skills, subagents and tools they
+used. Prompts and responses longer than two lines are summarized into one
+sentence by `haiku`. Each session gets its own accent color.
+
+The pane opens after the first prompt where it docks (the fullscreen layout).
+Pressing a prompt offers **Rewind…** (Claude Code's `/rewind` picker) or **Copy
+to prompt**. See [plugins/session-compass/README.md](plugins/session-compass/README.md).
+
+#### Commands
+
+| Command | Description |
+|---------|-------------|
+| `/compass` | Open the pane |
+| `/compass color <name\|#hex\|next>` | Set this session's accent color |
+| `/compass resync` | Rebuild the history from the transcript |

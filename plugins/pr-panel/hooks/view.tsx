@@ -223,16 +223,19 @@ const renderActions = (ui: Ui, s: PrSnapshot, state: PaneState, handlers: PaneHa
     <Box flexDirection="column">
       {blockers.length > 0 && <Text color="warning">Merge blocked: {blockers.join(', ')}</Text>}
       {showMethod && (
-        <Box>
-          <Text dimColor>Merge method </Text>
-          {s.repo.methods.map(m => (
-            <Button
-              key={`method-${m}`}
-              label={methodLabel(m)}
-              variant={m === method ? 'primary' : undefined}
-              onPress={() => handlers.pickMethod(m)}
-            />
-          ))}
+        // The label on its own line: beside the buttons, a narrow pane squeezes it to a column of letters.
+        <Box flexDirection="column">
+          <Text dimColor>Merge method</Text>
+          <Box flexWrap="wrap">
+            {s.repo.methods.map(m => (
+              <Button
+                key={`method-${m}`}
+                label={methodLabel(m)}
+                variant={m === method ? 'primary' : undefined}
+                onPress={() => handlers.pickMethod(m)}
+              />
+            ))}
+          </Box>
         </Box>
       )}
       {confirming ? (
