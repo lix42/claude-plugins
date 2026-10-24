@@ -1,0 +1,9 @@
+{
+  "name": "session-compass",
+  "description": "A pane that keeps you oriented in a session: its name and place, an accent color per session, and a one-line-per-item history of prompts and responses with commands, skills and tools highlighted",
+  "version": "0.1.0",
+  "author": {
+    "name": "lix42"
+  },
+  "types": "./types/index.d.ts"
+}

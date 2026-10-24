@@ -23,6 +23,12 @@
       "description": "Live panel for the GitHub PRs a session opens: checks, reviews, unresolved threads and comments, with auto-merge, merge, re-run and fix-this actions",
       "source": "./plugins/pr-panel",
       "category": "productivity"
+    },
+    {
+      "name": "session-compass",
+      "description": "A pane that keeps you oriented in a session: its name, repo and branch in a per-session accent color, and its history of prompts and responses with commands, skills and tools highlighted, long ones summarized to one line",
+      "source": "./plugins/session-compass",
+      "category": "productivity"
     }
   ]
 }
