@@ -165,7 +165,7 @@ tasks one at a time with `tasks mv`.
 | `/tasks-done [task]` | Mark a task complete and show what it just unblocked |
 | `/tasks-group [hint]` | Promote an oversized flat task list to structural epics and split the progress log per epic |
 | `/tasks-migrate` | Convert a plan from the checkbox format to frontmatter task files |
-| `/tasks:start-task <task>` | Create a branch + sibling worktree for the task from the remote default branch, switch into it, then explain the task and agree on a plan |
+| `/tasks:start-task <task>` | Create a branch + worktree for the task from the remote default branch, switch into it, then explain the task and agree on a plan |
 
 Developing the CLI: `node --test 'plugins/tasks/skills/task-tracking/cli/test/*.test.ts'`
 runs the tests and `tsc -p plugins/tasks/skills/task-tracking/cli` typechecks it; neither
@@ -175,7 +175,10 @@ installs anything.
 worktree before creating anything — including a worktree whose folder was deleted
 — and asks whether to reuse it, recreate it, or stop. It never deletes or resets
 anything without your answer. Task `app/state` in epic mode gets branch
-`app/state` and folder `../app-state`. It runs only when invoked (in Codex,
+`app/state`. Started from the default branch, its folder is
+`.worktrees/app-state` inside the checkout, and `.worktrees/` is added to
+`.gitignore` if it isn't ignored yet. Started from any other branch, its folder
+is the sibling `../app-state`. It runs only when invoked (in Codex,
 `$start-task`), since it creates branches and worktrees.
 
 The bundled `task-tracking` skill also triggers automatically when you ask about
