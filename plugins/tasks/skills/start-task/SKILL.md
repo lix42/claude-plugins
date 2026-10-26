@@ -2,8 +2,9 @@
 name: start-task
 description: >-
   Start work on a task from the docs/tasks plan in its own git worktree: create a
-  branch named after the task from the remote default branch, add a sibling
-  worktree for it, switch the session into it, then read the task and its
+  branch named after the task from the remote default branch, add a worktree
+  for it (under .worktrees/ when on the default branch, otherwise a sibling of
+  the checkout), switch the session into it, then read the task and its
   context, explain it in plain English, draft a plan, and interview the user
   about anything unclear. Checks for an existing branch, folder, or worktree
   first and asks how to proceed instead of clobbering anything. Use when the
@@ -44,13 +45,20 @@ Derive the names from the task id:
 
 | | Flat (`parser`) | Epic (`app/state`) |
 |---|---|---|
-| Branch | `parser` | `app/state` |
-| Folder | `<root>/../parser` | `<root>/../app-state` |
+| Branch (`$BRANCH`) | `parser` | `app/state` |
+| Folder name (`$NAME`) | `parser` | `app-state` |
 
-`<root>` is the top level of the current checkout, so the new worktree is a
-sibling of it. Normalize the folder with `pwd -P` semantics (resolve symlinks,
-e.g. `/tmp` → `/private/tmp` on macOS) before comparing it to anything git
-reports.
+Where the folder goes depends on the branch the current checkout is on.
+`<root>` is the top level of the current checkout:
+
+- **On the default branch** (e.g. `main`) — `$FOLDER` is
+  `<root>/.worktrees/<folder name>`, inside the checkout and gitignored.
+- **On any other branch, or detached HEAD** — `$FOLDER` is
+  `<root>/../<folder name>`, a sibling of the checkout.
+
+The default branch comes from `$BASE`, so settle `$FOLDER` in step 2. Normalize
+it with `pwd -P` semantics (resolve symlinks, e.g. `/tmp` → `/private/tmp` on
+macOS) before comparing it to anything git reports.
 
 If the task's status is already `done` or `closed`, mention it and ask before
 continuing.
@@ -63,6 +71,12 @@ Run these and collect the facts; create nothing yet.
 git fetch origin --prune
 BASE=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || echo origin/main)
 git rev-parse --verify --quiet "$BASE"            # base must exist
+ROOT=$(cd "$(git rev-parse --show-toplevel)" && pwd -P)
+if [ "$(git branch --show-current)" = "${BASE#origin/}" ]; then
+  FOLDER="$ROOT/.worktrees/$NAME"                  # on the default branch
+else
+  FOLDER="$(cd "$ROOT/.." && pwd -P)/$NAME"         # elsewhere: sibling
+fi
 git rev-parse --verify --quiet "refs/heads/$BRANCH"          # local branch?
 git rev-parse --verify --quiet "refs/remotes/origin/$BRANCH" # remote branch?
 git worktree list --porcelain                      # registered worktrees
@@ -86,7 +100,7 @@ For an existing local branch, also get how it relates to the base:
 If **none** of branch, remote branch, folder, or worktree exists, go straight to
 step 4 with the default action. Otherwise present what you found, plainly — e.g.
 "branch `parser` exists (3 commits ahead of origin/main, 12 behind); no worktree;
-folder `../parser` doesn't exist" — and ask with `AskUserQuestion`, offering only
+folder `.worktrees/parser` doesn't exist" — and ask with `AskUserQuestion`, offering only
 the options that fit. Always include **Stop**.
 
 Check the situations in this order; the first match decides:
@@ -130,6 +144,18 @@ Check the situations in this order; the first match decides:
 If the user picks Stop, stop — summarize what exists and end.
 
 ## 4. Create the worktree (default action)
+
+When `$FOLDER` is under `<root>/.worktrees/`, first make sure git ignores it.
+Do this before **any** `git worktree add`, including the ones in step 3:
+
+```bash
+git -C "$ROOT" check-ignore -q ".worktrees/$NAME"  # already ignored?
+```
+
+If it isn't ignored, append `/.worktrees/` on its own line to
+`<root>/.gitignore`, creating the file if needed (add a newline first if the
+file doesn't end with one). Don't commit the change. Tell the user that
+`.gitignore` was changed so they can commit it.
 
 ```bash
 git worktree add --no-track -b "$BRANCH" "$FOLDER" "$BASE"
