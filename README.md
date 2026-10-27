@@ -165,13 +165,18 @@ tasks one at a time with `tasks mv`.
 | `/tasks-done [task]` | Mark a task complete and show what it just unblocked |
 | `/tasks-group [hint]` | Promote an oversized flat task list to structural epics and split the progress log per epic |
 | `/tasks-migrate` | Convert a plan from the checkbox format to frontmatter task files |
-| `/tasks:start-task <task>` | Create a branch + worktree for the task from the remote default branch, switch into it, then explain the task and agree on a plan |
+| `/tasks:start-task <task>` | Explain the task and draft a plan from the current checkout; once you say go, create a branch + worktree from the remote default branch, switch into it, check it matches, and agree on the plan |
 
 Developing the CLI: `node --test 'plugins/tasks/skills/task-tracking/cli/test/*.test.ts'`
 runs the tests and `tsc -p plugins/tasks/skills/task-tracking/cli` typechecks it; neither
 installs anything.
 
-`/tasks:start-task` checks for an existing branch (local or remote), folder, or
+`/tasks:start-task` briefs first: it reads the task from the current checkout,
+explains it, drafts a plan, and answers your questions before creating anything —
+say **go** to set up the worktree or **stop** to walk away with nothing created.
+After switching into the worktree it compares the files it read against the
+worktree and updates the plan if they differ, then interviews you on whatever is
+still open. It checks for an existing branch (local or remote), folder, or
 worktree before creating anything — including a worktree whose folder was deleted
 — and asks whether to reuse it, recreate it, or stop. It never deletes or resets
 anything without your answer. Task `app/state` in epic mode gets branch
