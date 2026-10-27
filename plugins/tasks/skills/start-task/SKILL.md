@@ -1,15 +1,16 @@
 ---
 name: start-task
 description: >-
-  Start work on a task from the docs/tasks plan in its own git worktree: create a
+  Start work on a task from the docs/tasks plan: read the task and its context
+  from the current checkout, explain it in plain English, draft a plan, and
+  answer the user's questions — then, only once the user says go, create a
   branch named after the task from the remote default branch, add a worktree
   for it (under .worktrees/ when on the default branch, otherwise a sibling of
-  the checkout), switch the session into it, then read the task and its
-  context, explain it in plain English, draft a plan, and interview the user
-  about anything unclear. Checks for an existing branch, folder, or worktree
-  first and asks how to proceed instead of clobbering anything. Use when the
-  user invokes /tasks:start-task or $start-task, or asks to start/pick up a
-  specific task in a new worktree.
+  the checkout), switch the session into it, check the worktree matches what was
+  read, and interview the user about anything still unclear. Checks for an
+  existing branch, folder, or worktree first and asks how to proceed instead of
+  clobbering anything. Use when the user invokes /tasks:start-task or
+  $start-task, or asks to start/pick up a specific task in a new worktree.
 argument-hint: <task-name>
 disable-model-invocation: true
 allowed-tools: Read, Glob, Grep, Bash, AskUserQuestion, EnterWorktree
@@ -17,9 +18,14 @@ allowed-tools: Read, Glob, Grep, Bash, AskUserQuestion, EnterWorktree
 
 # Start a task
 
-Set up an isolated worktree for one task and get to an agreed plan. The user has
-already chosen the task — do not run the "what's next" query or second-guess the
-choice.
+Understand one task, let the user decide whether to start it now, then set up an
+isolated worktree for it and get to an agreed plan. The user has already chosen
+the task — do not run the "what's next" query or second-guess the choice.
+
+The order matters: brief first, worktree second. The user may change their mind
+after reading the brief, and often has questions about the plan — so nothing is
+created until they say go, and their questions are answered before the
+interview.
 
 This skill **never destroys anything on its own**: no deleting folders, no
 resetting branches, no discarding changes without an explicit answer from the
@@ -95,10 +101,72 @@ From `git worktree list --porcelain`, determine:
 For an existing local branch, also get how it relates to the base:
 `git rev-list --left-right --count "$BASE...$BRANCH"` (behind / ahead).
 
-## 3. Decide
+Keep these facts for the brief (step 3) and the decision (step 5). Don't ask
+about them yet.
+
+## 3. Read and brief — from the current checkout
+
+Read from the current checkout (`$ROOT`), following the task-tracking skill's
+reading rules. If the task exists only on the remote (step 1), read the task
+file — and any other plan file the checkout lacks — with
+`git show "$BASE:<path>"` instead.
+
+- The task file — `docs/tasks/<id>.md` — and `tasks show <id>`: its deps with
+  their status. Note any dependency not yet `done` — starting a blocked task is
+  allowed, but call it out.
+- The design in `docs/tasks/_header.md` (the top of `TASKS.md`).
+- The task files of its direct dependencies (enough to know the interfaces it
+  builds on).
+- The progress log: flat mode, all of `docs/progress.md`; epic mode, the whole
+  `docs/progress/<epic>.md` plus the `## Epic summary` of each epic it depends
+  on. Prior sections carry decisions and gotchas that the spec doesn't.
+- `docs/design.md` if TASKS.md links to it for this area, and the code the task
+  names (modules, files, types) — enough to ground the plan in what exists.
+
+**Record every path you read** and where it came from (checkout or `$BASE`) —
+step 8 compares them against the worktree.
+
+If an existing branch or worktree from step 2 is likely to be reused and already
+carries work for this task, look at that work too (`git log "$BASE..$BRANCH"`,
+`git diff --stat "$BASE...$BRANCH"`) — it changes what is left to do.
+
+Then reply with:
+
+1. **In plain English** — what the task is and why it exists, what it touches,
+   and what "done" looks like (from How to Verify). Short, no jargon the task
+   file doesn't force.
+2. **Plan** — concrete steps: files to change or add, the order, and how each
+   step is verified. Flag where it departs from the task file's Design and why.
+   Push back if the spec looks wrong or conflicts with the code or progress log.
+3. **Setup** — one or two lines on what step 2 found: the branch and folder that
+   will be created, or what already exists (e.g. "branch `parser` exists, 3
+   commits ahead of origin/main, 12 behind; no worktree").
+
+## 4. Gate — wait for go
+
+End the reply with a plain question, not `AskUserQuestion` — the user should be
+free to type questions:
+
+> Does this sound right? Ask anything about the plan, or say **go** to create the
+> worktree (or **stop**).
+
+Then end the turn and wait.
+
+- **Questions** — answer them, grounded in what you read (read more if needed).
+  If an answer changes the plan, show the revised parts. Ask again; repeat until
+  the user says go or stop.
+- **Plan changes** — revise the plan, show what changed, ask again.
+- **Stop** — nothing was created; say so and end.
+- **Go** — continue to step 5. Remember what was already settled here so step 9
+  doesn't ask it again.
+
+## 5. Decide
+
+If the gate took a while, re-run the step 2 checks (skip the fetch) — the user
+may have created or removed things meanwhile.
 
 If **none** of branch, remote branch, folder, or worktree exists, go straight to
-step 4 with the default action. Otherwise present what you found, plainly — e.g.
+step 6 with the default action. Otherwise present what you found, plainly — e.g.
 "branch `parser` exists (3 commits ahead of origin/main, 12 behind); no worktree;
 folder `.worktrees/parser` doesn't exist" — and ask with `AskUserQuestion`, offering only
 the options that fit. Always include **Stop**.
@@ -106,7 +174,7 @@ the options that fit. Always include **Stop**.
 Check the situations in this order; the first match decides:
 
 1. **Worktree registered at `$FOLDER`, folder present.**
-   - *Use it* — go to step 5 with that worktree. If it's on a different branch
+   - *Use it* — go to step 7 with that worktree. If it's on a different branch
      than `$BRANCH`, say so explicitly in the question. Report its
      `git status --short` and ahead/behind so the user knows what they're
      walking into.
@@ -119,7 +187,7 @@ Check the situations in this order; the first match decides:
    - *Stop.*
 3. **`$BRANCH` checked out in a worktree elsewhere.** Git refuses to check one
    branch out twice.
-   - *Use that worktree* — go to step 5 with its path.
+   - *Use that worktree* — go to step 7 with its path.
    - *Stop.*
 4. **`$FOLDER` exists but isn't a registered worktree.**
    - If it's **non-empty**: *Use a different folder name* (ask for it, then
@@ -143,10 +211,10 @@ Check the situations in this order; the first match decides:
 
 If the user picks Stop, stop — summarize what exists and end.
 
-## 4. Create the worktree (default action)
+## 6. Create the worktree (default action)
 
 When `$FOLDER` is under `<root>/.worktrees/`, first make sure git ignores it.
-Do this before **any** `git worktree add`, including the ones in step 3:
+Do this before **any** `git worktree add`, including the ones in step 5:
 
 ```bash
 git -C "$ROOT" check-ignore -q ".worktrees/$NAME"  # already ignored?
@@ -168,7 +236,7 @@ gets its own upstream on its first `git push -u`.
 If any `git worktree add` fails, show the error and stop — don't retry with
 `-f` or other flags the user didn't choose.
 
-## 5. Switch into the worktree
+## 7. Switch into the worktree
 
 In OpenCode, use the available `session_move` tool with `directory: "$FOLDER"`
 (absolute), omitting `sessionID` to move the current session. If the tool is in
@@ -185,36 +253,36 @@ every read and command targeting the worktree path explicitly
 
 Confirm in one line: folder, branch, base commit (`git log -1 --oneline`).
 
-## 6. Brief and plan
+## 8. Check the worktree matches the reading
 
-Everything below is read **from the worktree**, not the original checkout.
+The brief was read from the checkout; the work happens in the worktree. They
+usually match (start-task typically runs from an up-to-date default branch), but
+the checkout may be stale, on another branch, or carry uncommitted edits, and a
+reused branch has its own history.
 
-Read, following the task-tracking skill's reading rules:
+Compare every path recorded in step 3 against the worktree:
 
-- The task file — `docs/tasks/<id>.md` — and `tasks show <id>`: its deps with
-  their status. Note any dependency not yet `done` — starting a blocked task is
-  allowed, but call it out.
-- The design in `docs/tasks/_header.md` (the top of `TASKS.md`).
-- The task files of its direct dependencies (enough to know the interfaces it
-  builds on).
-- The progress log: flat mode, all of `docs/progress.md`; epic mode, the whole
-  `docs/progress/<epic>.md` plus the `## Epic summary` of each epic it depends
-  on. Prior sections carry decisions and gotchas that the spec doesn't.
-- `docs/design.md` if TASKS.md links to it for this area, and the code the task
-  names (modules, files, types) — enough to ground the plan in what exists.
+```bash
+# read from the checkout
+git diff --no-index --stat -- "$ROOT/<path>" "$FOLDER/<path>"
+# read from $BASE
+git -C "$FOLDER" diff --stat "$BASE" -- <path>
+```
 
-Then reply with:
+Also re-run `tasks show <id>` in the worktree — dependency statuses may differ.
 
-1. **In plain English** — what the task is and why it exists, what it touches,
-   and what "done" looks like (from How to Verify). Short, no jargon the task
-   file doesn't force.
-2. **Plan** — concrete steps: files to change or add, the order, and how each
-   step is verified. Flag where it departs from the task file's Design and why.
-   Push back if the spec looks wrong or conflicts with the code or progress log.
-3. **Open questions** — if anything is genuinely unclear or undecided (scope
-   edges, conflicting guidance, a choice the spec leaves open), interview the
-   user with `AskUserQuestion`: a few sharp questions, each with concrete
-   options, not a long form. Skip anything you can reasonably infer.
+- **No differences** — say so in one line and continue.
+- **Differences** — re-read the changed files from the worktree, say what
+  changed, and update the plan. If the change is material (a dependency's
+  interface moved, the task spec changed, work already exists), show the revised
+  plan before the interview.
+
+## 9. Interview and agree
+
+If anything is still genuinely unclear or undecided (scope edges, conflicting
+guidance, a choice the spec leaves open) — and wasn't settled at the gate —
+interview the user with `AskUserQuestion`: a few sharp questions, each with
+concrete options, not a long form. Skip anything you can reasonably infer.
 
 Revise the plan with the answers. **Do not start implementing** until the user
 agrees to the plan.
