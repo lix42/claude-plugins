@@ -183,7 +183,11 @@ anything without your answer. Task `app/state` in epic mode gets branch
 `app/state`. Started from the default branch, its folder is
 `.worktrees/app-state` inside the checkout, and `.worktrees/` is added to
 `.gitignore` if it isn't ignored yet. Started from any other branch, its folder
-is the sibling `../app-state`. It runs only when invoked (in Codex,
+is the sibling `../app-state`. Started from the default branch, it also marks
+the task `doing` there in a local commit (`tasks: mark <id> in progress [local]`,
+never pushed) so the next start-task or `tasks next` from that checkout doesn't
+offer it again; drop the marker by syncing from `origin/main` once the task is
+done. It runs only when invoked (in Codex,
 `$start-task`), since it creates branches and worktrees.
 
 The bundled `task-tracking` skill also triggers automatically when you ask about
