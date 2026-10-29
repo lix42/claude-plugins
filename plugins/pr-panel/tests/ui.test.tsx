@@ -122,3 +122,62 @@ test('a blocked PR offers a confirmed bypass, and a failed action shows its erro
   expect(await pane.find({ type: 'Text', text: /failed:/ })).toBeUndefined()
   await pane.unmount()
 })
+
+test('enabling auto-merge says so in the pane, and the notice clears itself after 10 seconds', async ($, on) => {
+  const waits: number[] = []
+  let release = () => {}
+  on('process.run', (_, e) => ({
+    value: { exitCode: 0, stdout: e.argv[2] === 'merge' ? '' : gh(e.argv), stderr: '', isStdoutTruncated: false, isStderrTruncated: false },
+  }))
+  on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('ui.toast', () => ({ value: undefined }))
+  on('clock.now', () => ({ value: 1_000_000 }))
+  // The wait resolves only when the test lets it, standing in for 10 seconds passing.
+  on('clock.after', (_, e) => {
+    waits.push(e.ms)
+    return new Promise(resolve => (release = () => resolve({ value: undefined })))
+  })
+
+  await $.command.run({
+    command: 'pr',
+    args: REF.url,
+    origin: { kind: 'composer' },
+    presentation: { isFullscreen: false, columns: 160 },
+  })
+  const pane = await $.ui.mount({ plugin: 'pr-panel', surface: 'terminal', component: 'Pane', props: PANE_PROPS, requestId: 'pr-panel', viewport: VIEWPORT })
+
+  await pane.press({ key: 'action-auto-enable' })
+  const shown = await pane.find({ type: 'Text', text: /^#42 Auto-merge enabled \(squash\)/ })
+  expect(shown?.props.color).toBe('success')
+  expect(waits).toEqual([10_000])
+
+  release()
+  expect(await pane.find({ type: 'Text', text: /Auto-merge enabled/ })).toBeUndefined()
+  await pane.unmount()
+})
+
+test('a merged PR is drawn green in the pane title and the band', async ($, on) => {
+  const merged = (argv: readonly string[]) =>
+    argv[1] === 'pr' && argv[2] === 'view' ? JSON.stringify({ ...VIEW, state: 'MERGED' }) : gh(argv)
+  on('process.run', (_, e) => ({
+    value: { exitCode: 0, stdout: merged(e.argv), stderr: '', isStdoutTruncated: false, isStderrTruncated: false },
+  }))
+  on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('clock.now', () => ({ value: 1_000_000 }))
+
+  await $.command.run({
+    command: 'pr',
+    args: REF.url,
+    origin: { kind: 'composer' },
+    presentation: { isFullscreen: false, columns: 160 },
+  })
+  const pane = await $.ui.mount({ plugin: 'pr-panel', surface: 'terminal', component: 'Pane', props: PANE_PROPS, requestId: 'pr-panel', viewport: VIEWPORT })
+  expect((await pane.find({ type: 'Text', text: /^#42 Add the thing$/ }))?.props.color).toBe('success')
+  await pane.unmount()
+
+  const band = await $.ui.mount({ plugin: 'pr-panel', surface: 'terminal', component: 'AbovePrompt', props: BAND_PROPS, viewport: VIEWPORT })
+  const line = await band.find({ type: 'Text', text: /^#42 / })
+  expect(line?.props.color).toBe('success')
+  expect(line?.props.dimColor).toBe(false)
+  await band.unmount()
+})

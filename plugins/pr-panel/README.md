@@ -114,10 +114,12 @@ GitHub cannot push to a local session, so the mod polls, cheaply:
    button, polls at once.
 
 An action that fails says why in the pane (gh's error) until the next action or
-**Dismiss**, and in a toast. Changes raise a toast. Finished checks, new reviews and a merge or close also
+**Dismiss**, and in a toast. One that succeeds says so for 10 s (enabling
+auto-merge reads "Auto-merge enabled"), and in a toast. Changes raise a toast. Finished checks, new reviews and a merge or close also
 raise a desktop notification.
 
-A merged or closed PR stops polling, shows its final state for two minutes, then
+A merged PR's title turns green in the pane and the band; a closed one is dimmed
+in the band. Either stops polling, shows its final state for two minutes, then
 leaves the band and the pane; the pane closes once no PR is left.
 
 ## Layout

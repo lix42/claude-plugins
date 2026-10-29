@@ -30,6 +30,8 @@ const fakeIo = (answer: (argv: readonly string[]) => string) => {
     toast: text => void toasts.push(text),
     notify: async () => null,
     setNotice: async () => null,
+    updateNotice: async () => null,
+    after: () => {},
     fill: async () => true,
     tellAgent: async text => {
       if (failSend) throw new Error('busy')

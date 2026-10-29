@@ -21,10 +21,23 @@ export const errorLine = (error: string): string =>
     .map(line => line.replace(/^[X!✗]\s+/, '').trim())
     .find(Boolean) ?? 'unknown error'
 
-const report = async (io: Io, ref: PrRef, label: string, result: { isOk: boolean; error: string }) => {
-  const text = result.isOk ? `${label}: done` : `${label} failed: ${errorLine(result.error)}`
+/** How long a success notice stays in the pane; a failure stays until dismissed or replaced. */
+export const NOTICE_MS = 10_000
+
+const report = async (
+  io: Io,
+  ref: PrRef,
+  label: string,
+  result: { isOk: boolean; error: string },
+  done = `${label}: done`,
+) => {
+  const text = result.isOk ? done : `${label} failed: ${errorLine(result.error)}`
   io.toast(text)
-  await io.setNotice({ url: ref.url, text, isError: !result.isOk })
+  if (!result.isOk) return io.setNotice({ url: ref.url, text, isError: true })
+  const expiresAt = (await io.now()) + NOTICE_MS
+  await io.setNotice({ url: ref.url, text, isError: false, expiresAt })
+  // Clears only this notice: a newer one has its own expiry.
+  io.after(NOTICE_MS, () => void io.updateNotice(shown => (shown?.expiresAt === expiresAt ? null : shown)))
 }
 
 export const actionLabel = (action: ActionId, method: MergeMethod | null): string => {
@@ -73,7 +86,8 @@ export const runAction = async (
                 action === 'auto-enable' ? 'auto' : action === 'bypass' ? 'admin' : 'now',
                 snapshot.headSha,
               )
-      await report(io, ref, label, await runGh(io, argv, 60_000))
+      const done = action === 'auto-enable' ? `#${ref.number} Auto-merge enabled${method ? ` (${methodLabel(method)})` : ''}` : undefined
+      await report(io, ref, label, await runGh(io, argv, 60_000), done)
     }
     await refresh(io, poller, ref, true)
   })

@@ -15,6 +15,9 @@ export type Io = {
   toast: (text: string) => void
   notify: (text: string, title: string) => Promise<unknown>
   setNotice: (notice: Notice | null) => Promise<unknown>
+  updateNotice: (fn: (notice: Notice | null) => Notice | null) => Promise<unknown>
+  /** Calls `fn` once, `ms` milliseconds from now. */
+  after: (ms: number, fn: () => void) => void
   fill: (text: string) => Promise<boolean>
   /** Sends the agent a message, a turn of its own once the session is idle. */
   tellAgent: (text: string) => Promise<unknown>

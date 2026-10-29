@@ -45,6 +45,8 @@ export function createPanel(host: PanelHost, saved = initialState()) {
     toast: text => { void host.notify(text.startsWith('Prompt ready:') ? 'Fix prompt prepared: review the preview before sending' : text, 'Pull request', false).catch(() => {}) },
     notify: (text, title) => host.notify(text, title, true),
     setNotice: async notice => { if (notice !== state.notice) { state.notice = notice; change() } },
+    updateNotice: async fn => { const next = fn(state.notice); if (next !== state.notice) { state.notice = next; change() } },
+    after: (ms, fn) => { setTimeout(fn, ms) },
     fill: async () => false,
     tellAgent: host.tellAgent,
     getAgent: async () => state.agent,
