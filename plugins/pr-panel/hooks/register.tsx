@@ -37,6 +37,8 @@ function makeIo($: EngineInterface): Io {
     toast: text => $.ui.toast(text),
     notify: (text, title) => $.ui.notify(text, { title }),
     setNotice: value => update($, notice, () => value),
+    updateNotice: fn => update($, notice, fn),
+    after: (ms, fn) => void $.clock.after(ms, fn),
     fill: async text => (await $.prompt.fill({ text })).isFilled,
     tellAgent: text => $.prompt.submit({ text }),
     getAgent: () => read($, agent),

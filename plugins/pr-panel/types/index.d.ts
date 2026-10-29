@@ -59,8 +59,8 @@ export type ViewerRights = {
   canEnableAutoMerge: boolean
 }
 
-/** The outcome of the last action, shown in the pane until the next one. */
-export type Notice = { url: string; text: string; isError: boolean }
+/** The outcome of the last action, shown in the pane until the next one, or until `expiresAt` for a success. */
+export type Notice = { url: string; text: string; isError: boolean; expiresAt?: number }
 
 export type RepoSettings = {
   methods: MergeMethod[]

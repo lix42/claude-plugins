@@ -47,6 +47,12 @@ const firstLines = (text: string, lines: number) => {
   return clean.slice(0, lines).join(' ') + (clean.length > lines ? ' …' : '')
 }
 
+/** A merged PR's band line is green; a closed one is dimmed. */
+const bandStyle = (pr: TrackedPr) => ({
+  color: pr.snapshot?.state === 'MERGED' ? ('success' as const) : undefined,
+  dimColor: pr.snapshot?.state === 'CLOSED',
+})
+
 const CHECK_MARK = { fail: '✗', pending: '…', pass: '✓', skipped: '–' } as const
 const CHECK_COLOR = { fail: 'error', pending: 'warning', pass: 'success', skipped: 'inactive' } as const
 
@@ -56,7 +62,7 @@ export const renderBand = (ui: Ui, list: readonly TrackedPr[], maxRows: number) 
     // One row: the newest PR and how many more, together.
     const newest = list[list.length - 1]
     return (
-      <Text dimColor={newest?.snapshot != null && newest.snapshot.state !== 'OPEN'} wrap="truncate">
+      <Text {...(newest ? bandStyle(newest) : {})} wrap="truncate">
         {newest ? summaryLine(newest) : ''} · +{list.length - 1} more · /pr
       </Text>
     )
@@ -68,7 +74,7 @@ export const renderBand = (ui: Ui, list: readonly TrackedPr[], maxRows: number) 
   return (
     <Box flexDirection="column">
       {shown.map(pr => (
-        <Text key={pr.ref.url} dimColor={pr.snapshot !== null && pr.snapshot.state !== 'OPEN'} wrap="truncate">
+        <Text key={pr.ref.url} {...bandStyle(pr)} wrap="truncate">
           {summaryLine(pr)}
         </Text>
       ))}
@@ -88,7 +94,7 @@ const renderHeader = (ui: Ui, pr: TrackedPr, s: PrSnapshot) => {
   ].filter(Boolean)
   return (
     <Box flexDirection="column">
-      <Text bold>
+      <Text bold color={s.state === 'MERGED' ? 'success' : undefined}>
         #{pr.ref.number} {s.title}
       </Text>
       <Link href={pr.ref.url} label={pr.ref.url} />
