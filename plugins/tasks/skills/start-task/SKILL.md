@@ -7,9 +7,7 @@ description: >-
   branch named after the task from the remote default branch, add a worktree
   for it (under .worktrees/ when on the default branch, otherwise a sibling of
   the checkout), switch the session into it, check the worktree matches what was
-  read, and interview the user about anything still unclear. Started from the
-  default branch, it first marks the task in progress there in a local-only
-  commit, so the next start-task from that checkout doesn't offer it again. Checks for an
+  read, and interview the user about anything still unclear. Checks for an
   existing branch, folder, or worktree first and asks how to proceed instead of
   clobbering anything. Use when the user invokes /tasks:start-task or
   $start-task, or asks to start/pick up a specific task in a new worktree.
@@ -126,7 +124,7 @@ file — and any other plan file the checkout lacks — with
   names (modules, files, types) — enough to ground the plan in what exists.
 
 **Record every path you read** and where it came from (checkout or `$BASE`) —
-step 9 compares them against the worktree.
+step 8 compares them against the worktree.
 
 If an existing branch or worktree from step 2 is likely to be reused and already
 carries work for this task, look at that work too (`git log "$BASE..$BRANCH"`,
@@ -142,8 +140,7 @@ Then reply with:
    Push back if the spec looks wrong or conflicts with the code or progress log.
 3. **Setup** — one or two lines on what step 2 found: the branch and folder that
    will be created, or what already exists (e.g. "branch `parser` exists, 3
-   commits ahead of origin/main, 12 behind; no worktree"). On the default
-   branch, add that go also commits the local in-progress marker (step 6).
+   commits ahead of origin/main, 12 behind; no worktree").
 
 ## 4. Gate — wait for go
 
@@ -160,7 +157,7 @@ Then end the turn and wait.
   the user says go or stop.
 - **Plan changes** — revise the plan, show what changed, ask again.
 - **Stop** — nothing was created; say so and end.
-- **Go** — continue to step 5. Remember what was already settled here so step 10
+- **Go** — continue to step 5. Remember what was already settled here so step 9
   doesn't ask it again.
 
 ## 5. Decide
@@ -169,15 +166,15 @@ If the gate took a while, re-run the step 2 checks (skip the fetch) — the user
 may have created or removed things meanwhile.
 
 If **none** of branch, remote branch, folder, or worktree exists, go straight to
-step 6, then step 7's default action. Otherwise present what you found,
-plainly — e.g. "branch `parser` exists (3 commits ahead of origin/main, 12
-behind); no worktree; folder `.worktrees/parser` doesn't exist" — and ask with `AskUserQuestion`, offering only
+step 6 with the default action. Otherwise present what you found, plainly — e.g.
+"branch `parser` exists (3 commits ahead of origin/main, 12 behind); no worktree;
+folder `.worktrees/parser` doesn't exist" — and ask with `AskUserQuestion`, offering only
 the options that fit. Always include **Stop**.
 
 Check the situations in this order; the first match decides:
 
 1. **Worktree registered at `$FOLDER`, folder present.**
-   - *Use it* — go to step 8 with that worktree. If it's on a different branch
+   - *Use it* — go to step 7 with that worktree. If it's on a different branch
      than `$BRANCH`, say so explicitly in the question. Report its
      `git status --short` and ahead/behind so the user knows what they're
      walking into.
@@ -190,7 +187,7 @@ Check the situations in this order; the first match decides:
    - *Stop.*
 3. **`$BRANCH` checked out in a worktree elsewhere.** Git refuses to check one
    branch out twice.
-   - *Use that worktree* — go to step 8 with its path.
+   - *Use that worktree* — go to step 7 with its path.
    - *Stop.*
 4. **`$FOLDER` exists but isn't a registered worktree.**
    - If it's **non-empty**: *Use a different folder name* (ask for it, then
@@ -212,49 +209,9 @@ Check the situations in this order; the first match decides:
      branch will diverge from the pushed one.
    - *Stop.*
 
-If the user picks Stop, stop — summarize what exists and end. Any other answer
-runs step 6 before the command it chose.
+If the user picks Stop, stop — summarize what exists and end.
 
-## 6. Mark the task in progress on the default branch
-
-Only when the current checkout is on the default branch (`${BASE#origin/}`) and
-the task file exists in the checkout with status `todo`. Skip it otherwise: on
-another branch, a task found only on the remote (step 1), no task file, or a
-status already `doing` (a re-run of start-task) — say why in one line.
-
-This commit stays local. It keeps the task from showing as ready the next time
-the user runs start-task or `tasks next` from this checkout, while the work
-happens on the task branch. The worktree is still created from `$BASE`, so the
-marker never reaches the task branch or its PR.
-
-1. If anything in the plan already has uncommitted changes
-   (`git status --porcelain -- docs/tasks docs/TASKS.md docs/progress.md docs/progress`),
-   ask with `AskUserQuestion`: *Skip the marker* or *Stop*. `docs/TASKS.md` is
-   regenerated from the whole plan, header included, so any such edit would end
-   up in the marker commit. Never fold the user's edits into it.
-2. Run `tasks set <id> status=doing`. The paths it changed are the ones
-   `git status --porcelain` lists now under those plan paths (the task file and
-   `docs/TASKS.md`, at least) — never files outside the plan.
-3. Commit only those paths, leaving anything else staged or unstaged as it was:
-
-   ```bash
-   git commit -m "tasks: mark <id> in progress [local]" \
-     -m "Local marker: never push it. Drop it once the task is done by syncing the default branch from $BASE (git reset --keep $BASE when only [local] commits are ahead)." \
-     -- <changed paths>
-   ```
-
-   Keep the subject exactly in this form: `/sync` recognizes `[local]` markers
-   by it and drops them once `$BASE` has caught up.
-4. Never push the default branch here. If the commit fails, show the error, put
-   the status back (`tasks set <id> status=todo`), and ask whether to continue
-   without the marker or stop.
-
-A default branch carrying a marker no longer fast-forwards to `$BASE`; dropping
-markers is the sync's job, not this skill's. Integrating a task branch by
-rebasing onto the local default branch (ship's no-GitHub-remote path) would
-carry the marker along — mention it if that is how the repo ships.
-
-## 7. Create the worktree (default action)
+## 6. Create the worktree (default action)
 
 When `$FOLDER` is under `<root>/.worktrees/`, first make sure git ignores it.
 Do this before **any** `git worktree add`, including the ones in step 5:
@@ -279,7 +236,7 @@ gets its own upstream on its first `git push -u`.
 If any `git worktree add` fails, show the error and stop — don't retry with
 `-f` or other flags the user didn't choose.
 
-## 8. Switch into the worktree
+## 7. Switch into the worktree
 
 In OpenCode, use the available `session_move` tool with `directory: "$FOLDER"`
 (absolute), omitting `sessionID` to move the current session. If the tool is in
@@ -296,7 +253,7 @@ every read and command targeting the worktree path explicitly
 
 Confirm in one line: folder, branch, base commit (`git log -1 --oneline`).
 
-## 9. Check the worktree matches the reading
+## 8. Check the worktree matches the reading
 
 The brief was read from the checkout; the work happens in the worktree. They
 usually match (start-task typically runs from an up-to-date default branch), but
@@ -314,17 +271,13 @@ git -C "$FOLDER" diff --stat "$BASE" -- <path>
 
 Also re-run `tasks show <id>` in the worktree — dependency statuses may differ.
 
-When step 6 committed a marker, the task file and `docs/TASKS.md` differ by
-that status change alone (`doing` in the checkout, `todo` in the worktree).
-That difference is expected; don't report it as a change.
-
 - **No differences** — say so in one line and continue.
 - **Differences** — re-read the changed files from the worktree, say what
   changed, and update the plan. If the change is material (a dependency's
   interface moved, the task spec changed, work already exists), show the revised
   plan before the interview.
 
-## 10. Interview and agree
+## 9. Interview and agree
 
 If anything is still genuinely unclear or undecided (scope edges, conflicting
 guidance, a choice the spec leaves open) — and wasn't settled at the gate —
@@ -334,6 +287,5 @@ concrete options, not a long form. Skip anything you can reasonably infer.
 Revise the plan with the answers. **Do not start implementing** until the user
 agrees to the plan.
 
-Do not change the task's status in the worktree or write to the progress log
-here — that happens when work actually starts (`tasks set <id> status=doing` on
-the task branch). Step 6's marker on the default branch is separate and local.
+Do not change the task's status or write to the progress log here — that happens
+when work actually starts (`tasks set <id> status=doing`).
