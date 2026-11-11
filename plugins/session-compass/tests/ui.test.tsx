@@ -3,7 +3,7 @@ import { expect, test } from 'claude-code/testing'
 
 const VIEWPORT = { columns: 160, rows: 40 }
 const PANE_PROPS = {
-  title: 'Session',
+  title: 'compass',
   isFocused: false,
   bodyColumns: 35,
   placement: 'dock' as const,
@@ -60,7 +60,7 @@ test('/compass resync draws the history, summarizes long text, and a prompt offe
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('clock.now', () => ({ value: 1_000_000 }))
   on('clock.sleep', () => ({ value: undefined }))
-  on('ui.panes', () => ({ value: [{ id: 'session-compass', title: 'Session', isShown: true, isFocused: false, isPlaced: true }] }))
+  on('ui.panes', () => ({ value: [{ id: 'session-compass', title: 'compass', isShown: true, isFocused: false, isPlaced: true }] }))
 
   const ran = await $.command.run({
     command: 'compass',
@@ -132,7 +132,7 @@ test('pressing the name opens an editor that renames the session and sets its co
     return {}
   })
   on('ui.scroll', () => ({}))
-  // The pane is open under the session's old name, as its tab shows.
+  // The pane's tab still shows the session's old name, as an earlier version titled it.
   on('ui.panes', () => ({ value: [{ id: 'session-compass', title: 'Old name', isShown: true, isFocused: false, isPlaced: true }] }))
   const titles: string[] = []
   on('ui.open', (_, e) => {
@@ -154,7 +154,8 @@ test('pressing the name opens an editor that renames the session and sets its co
 
   await pane.input({ key: 'name-input', text: '  Release v2  ' })
   expect(renamed).toEqual(['Release v2'])
-  expect(titles).toContain('Release v2')
+  // The tab keeps its short label: the name is drawn in the pane.
+  expect(titles).not.toContain('Release v2')
   expect(await pane.find({ type: 'Text', text: /^Release v2$/ })).toBeDefined()
 
   // Teal is the eleventh swatch: its hotkey, as Enter on it after Tab would.

@@ -17,6 +17,8 @@ import { SUMMARY_MODEL, cleanSummary, summaryPrompt } from './summarize'
 import { contentKey, renderPane } from './view'
 
 const PANE = 'session-compass'
+/** The pane's tab label: short, as the session's name is drawn in the pane itself. */
+const TITLE = 'compass'
 /** The width asked for while docked; the person's own resize wins. */
 const PANE_COLUMNS = 35
 /** Summaries asked for per pass (one pass at the session's start and after each turn), so a resumed long session does not ask for hundreds at once. */
@@ -83,20 +85,20 @@ const resolvePlace = async ($: EngineInterface) => {
   return placeLine(root, repo?.name ?? null, branch?.exitCode === 0 ? branch.stdout.trim() || null : null)
 }
 
-/** Reads the name from the transcript, and retitles the pane's tab when it changed. */
+/** Reads the name from the transcript, and puts the pane's tab label back if an older version left the name there. */
 const refreshName = async ($: EngineInterface) => {
   const ran = await $.process.run(nameCommand(await $.session.id()), { timeoutMs: 3_000 }).catch(() => null)
   const found = ran ? parseName(ran.stdout) : null
   if (found !== null && found !== (await read($, name))) await update($, name, () => found)
-  // Even when the name stands, the tab may carry an older one (a name set before a reload).
-  await retitle($, (await read($, name)) ?? 'Session')
+  // A tab opened by an earlier version may still carry the session's name.
+  await retitle($)
 }
 
 /** Retitles the pane's tab when it is open and titled otherwise: another open of it only retitles. */
-const retitle = async ($: EngineInterface, title: string) => {
+const retitle = async ($: EngineInterface) => {
   const pane = (await $.ui.panes()).find(open => open.id === PANE)
   // The width goes along: an open without it would ask for the default share again.
-  if (pane && pane.title !== title) await $.ui.open({ id: PANE, title, columns: PANE_COLUMNS })
+  if (pane && pane.title !== TITLE) await $.ui.open({ id: PANE, title: TITLE, columns: PANE_COLUMNS })
 }
 
 const rebuild = async ($: EngineInterface) => {
@@ -185,7 +187,7 @@ const followEnd = async ($: EngineInterface, follow: Follow) => {
 }
 
 const openPane = async ($: EngineInterface, follow: Follow) => {
-  const opened = await $.ui.open({ id: PANE, title: (await read($, name)) ?? 'Session', columns: PANE_COLUMNS })
+  const opened = await $.ui.open({ id: PANE, title: TITLE, columns: PANE_COLUMNS })
   if (!opened.isPlaced) return `Session compass is open but waits undrawn: ${opened.reason}`
   follow.isAtEnd = true
   follow.lastContent = null
@@ -243,7 +245,7 @@ export const register: Register = on => {
       await rebuild($)
     }
     held.endedId = null
-    await retitle($, 'Session')
+    await retitle($)
     void refreshName($)
     void resolvePlace($).then(line => update($, place, () => line))
     // The summaries were reset too, and what was asked for before stands for nothing now.
@@ -304,7 +306,6 @@ export const register: Register = on => {
     if (given) {
       // Taken as given: the transcript may not hold it yet, and reading it now would bring the old title back.
       await update($, name, () => given)
-      await retitle($, given)
     } else {
       // A bare /rename generates a name: read it once the transcript has it.
       void $.clock.sleep(RENAME_SETTLE_MS).then(() => refreshName($))
@@ -398,8 +399,7 @@ export const register: Register = on => {
               .catch((error: unknown) => ({ text: `Could not rename: ${String(error)}` }))
             if (ran.text?.startsWith('Could not')) return void (await update($, notice, () => ran.text ?? null))
             await update($, name, () => given)
-            await retitle($, given)
-          })(),
+                })(),
         pickColor: text =>
           void (async () => {
             const color = parseColor(text)
