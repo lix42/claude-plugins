@@ -1,3 +1,4 @@
+import type { On } from 'claude-code'
 import { expect, test } from 'claude-code/testing'
 
 const VIEWPORT = { columns: 160, rows: 60 }
@@ -71,6 +72,11 @@ test('/hud draws context, usage, status and grouped commands; a press puts the c
     store.set(e.key, e.value)
     return { value: undefined }
   })
+  on('store.keys', () => ({ value: [...store.keys()] }))
+  on('store.delete', (_, e) => {
+    store.delete(e.key)
+    return { value: undefined }
+  })
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('ui.panes', () => ({ value: [] }))
 
@@ -78,7 +84,7 @@ test('/hud draws context, usage, status and grouped commands; a press puts the c
   await $.session.start({ cwd: '/home/me/src/app', surface: 'terminal', isInteractive: true })
   const ran = await $.command.run({ command: 'hud', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 160 } })
   expect(ran.text).toBe('Session HUD opened.')
-  for (let i = 0; i < 100; i++) await Promise.resolve()
+  for (let i = 0; i < 2000; i++) await Promise.resolve()
 
   await $.turn.start({ text: 'add the hud', turnId: 't1' })
   clock = 1_065_000
@@ -176,4 +182,270 @@ test('/hud draws context, usage, status and grouped commands; a press puts the c
   const over = await $.ui.mount({ plugin: 'session-hud', surface: 'terminal', component: 'Pane', props: PANE_PROPS, requestId: 'session-hud', viewport: VIEWPORT })
   expect(await over.find({ type: 'Text', text: /^\$2\.25$/ })).toBeDefined()
   await over.unmount()
+})
+
+/** Lets the work a hook left running settle. */
+const settle = async () => {
+  for (let i = 0; i < 2000; i++) await Promise.resolve()
+}
+
+const MOUNT = { plugin: 'session-hud', surface: 'terminal' as const, component: 'Pane' as const, props: PANE_PROPS, requestId: 'session-hud', viewport: VIEWPORT }
+
+type Agent = { id: string; kind: string; sessionId: string; name: string; status: string; state: string; startedAt: number }
+
+const agent = (id: string, name: string, state: string, startedAt = 900_000): Agent => ({
+  id,
+  kind: 'background',
+  sessionId: `${id}-full`,
+  name,
+  status: state === 'working' ? 'busy' : 'idle',
+  state,
+  startedAt,
+})
+
+/**
+ * Stubs the engine for the sessions tests: session `s-main` in /home/me/src/app,
+ * the store in memory, `claude agents` answering `world.agents`, the lineage
+ * check answering for the sessions with a transcript (`world.transcripts`) by
+ * `world.related`, and the activity read giving each transcript's lines.
+ * Counts what the plugin asked: the lineage and activity reads, the panes opened.
+ */
+const stubEngine = (
+  on: On,
+  world: {
+    agents: Agent[]
+    related: string[]
+    transcripts: Record<string, string[]>
+    clock: number
+    /** Set: every store read fails. */
+    isStoreDown?: boolean
+    /** Set: `claude agents` answers only once it resolves. */
+    gate?: Promise<void>
+    /** The slash commands the session lists. */
+    commands?: { name: string; description: string; source: 'user' }[]
+  },
+  initial: Record<string, unknown> = {},
+) => {
+  const store = new Map<string, unknown>(Object.entries(initial))
+  const asked = { lineage: [] as string[][], activity: [] as string[][], opened: [] as string[], agentsReads: 0 }
+  let panes: { id: string; title: string; isShown: boolean; isFocused: boolean; isPlaced: boolean }[] = []
+  on('session.id', () => ({ value: 's-main' }))
+  on('session.cwd', () => ({ value: '/home/me/src/app' }))
+  on('session.root', () => ({ value: '/home/me/src/app' }))
+  on('session.model', () => ({ value: 'claude-opus-5-5' }))
+  on('session.repo', () => ({ value: null }))
+  on('session.usage', () => ({ value: { startedAt: 1_000_000, context: { window: 200_000 }, rateLimits: [] } }))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('env.get', (_, e) => ({ value: e.name === 'HOME' ? '/home/me' : undefined }))
+  on('store.get', (_, e) => {
+    if (world.isStoreDown) throw new Error('store unavailable')
+    return { value: store.get(e.key) }
+  })
+  on('store.set', (_, e) => {
+    store.set(e.key, e.value)
+    return { value: undefined }
+  })
+  on('command.list', () => ({ value: world.commands ?? [] }))
+  on('command.register', (_, e) => ({ value: { command: e.name } }))
+  on('command.run', { command: 'fork' }, () => ({}))
+  on('fs.list', () => ({ value: [] }))
+  on('clock.now', () => ({ value: world.clock }))
+  // Answered, the timers fire: the tick and the restore run beside what each test does.
+  on('clock.every', () => ({ value: undefined }))
+  on('clock.sleep', () => ({ value: undefined }))
+  on('ui.panes', () => ({ value: panes }))
+  on('ui.open', (_, e) => {
+    asked.opened.push(e.id)
+    panes = [{ id: e.id, title: e.title ?? '', isShown: true, isFocused: false, isPlaced: true }]
+    return { value: { isPlaced: true } }
+  })
+  on('process.run', async (_, e) => {
+    const [command, , script = ''] = e.argv
+    if (command === 'claude') {
+      asked.agentsReads++
+      await world.gate
+      return ok(JSON.stringify(world.agents))
+    }
+    if (command === 'sh' && script.includes('mine=')) {
+      const candidates = e.argv.slice(6)
+      asked.lineage.push(candidates)
+      const known = candidates.filter(id => Object.hasOwn(world.transcripts, id))
+      return ok(known.map(id => `${world.related.includes(id) ? '+' : '-'}${id}\n`).join(''))
+    }
+    if (command === 'sh' && script.includes('tail -c')) {
+      const ids = e.argv.slice(5)
+      asked.activity.push(ids)
+      return ok(ids.flatMap(id => [`@@@ ${id}`, ...(world.transcripts[id] ?? [])]).join('\n'))
+    }
+    return ok('main\n')
+  })
+  return { store, asked }
+}
+
+const at = (ms: number) => new Date(ms).toISOString()
+const prompted = (text: string) => JSON.stringify({ type: 'last-prompt', lastPrompt: text })
+const said = (ms: number, text: string) => JSON.stringify({ message: { role: 'assistant', content: [{ type: 'text', text }] }, timestamp: at(ms) })
+const ran = (ms: number, command: string, description: string) =>
+  JSON.stringify({ message: { role: 'assistant', content: [{ type: 'tool_use', name: 'Bash', input: { command, description } }] }, timestamp: at(ms) })
+const turnEnded = (ms: number) => JSON.stringify({ type: 'system', subtype: 'turn_duration', timestamp: at(ms) })
+
+test('/fork lists the fork it started, with what it does; unrelated sessions are not listed', async ($, on) => {
+  const world = {
+    clock: 1_000_000,
+    agents: [agent('zz', 'unrelated', 'done'), { ...agent('me', 'this one', 'working'), kind: 'interactive', sessionId: 's-main' }],
+    related: ['f1-full'],
+    transcripts: { 'zz-full': [] as string[] } as Record<string, string[]>,
+  }
+  stubEngine(on, world)
+  await $.session.start({ cwd: '/home/me/src/app', surface: 'terminal', isInteractive: true })
+  await $.command.run({ command: 'hud', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 160 } })
+  await settle()
+  let pane = await $.ui.mount(MOUNT)
+  expect(await pane.find({ type: 'Text', text: /Other sessions of this conversation/ })).toBeUndefined()
+  await pane.unmount()
+
+  // /fork: the new background session, working, shows its turn's time, its tool and its prompt.
+  world.agents = [...world.agents, agent('f1', 'main ⑂ try the fix', 'working', 1_000_100)]
+  world.transcripts['f1-full'] = [turnEnded(950_000), prompted('try the other fix'), ran(960_000, 'npm test', 'Run the tests')]
+  await $.command.run({ command: 'fork', args: 'try the fix', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 160 } })
+  await settle()
+  pane = await $.ui.mount(MOUNT)
+  expect(await pane.find({ key: 'conv-f1-full' })).toMatchObject({
+    text: expect.stringMatching(/● main ⑂ try the fix.*working 40s · ⑂ fork f1.*↳ Bash Run the tests.*“try the other fix”/s),
+  })
+  expect(await pane.find({ key: 'conv-zz-full' })).toBeUndefined()
+  await pane.unmount()
+})
+
+test('forks are found again on /hud and ↻, each checked once; done ones are not read again; gone ones leave', async ($, on) => {
+  const world = {
+    clock: 1_000_000,
+    agents: [agent('f1', 'main ⑂ first', 'done'), agent('zz', 'unrelated', 'done')],
+    related: ['f1-full', 'f2-full'],
+    transcripts: { 'f1-full': [prompted('first'), said(970_000, 'Done.'), turnEnded(970_000)], 'zz-full': [] } as Record<string, string[]>,
+  }
+  const { asked } = stubEngine(on, world)
+  // A new process (a restart): the forks still running are found when the HUD opens.
+  await $.session.start({ cwd: '/home/me/src/app', surface: 'terminal', isInteractive: true })
+  await $.command.run({ command: 'hud', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 160 } })
+  await settle()
+  const pane = await $.ui.mount(MOUNT)
+  expect(await pane.find({ key: 'conv-f1-full' })).toMatchObject({ text: expect.stringMatching(/✓ main ⑂ first.*done 30s ago.*“first”/s) })
+  expect(await pane.find({ key: 'conv-zz-full' })).toBeUndefined()
+
+  // A fork made elsewhere, its transcript not written yet: not listed, and asked about again on ↻.
+  world.agents = [...world.agents, agent('f2', 'main ⑂ second', 'working', 990_000)]
+  await pane.press({ key: 'refresh-status' })
+  expect(await pane.find({ key: 'conv-f2-full' })).toBeUndefined()
+  world.transcripts['f2-full'] = [turnEnded(980_000), prompted('second'), ran(990_000, 'ls', 'List files')]
+  await pane.press({ key: 'refresh-status' })
+  expect(await pane.find({ key: 'conv-f2-full' })).toMatchObject({ text: expect.stringMatching(/main ⑂ second.*working 10s.*↳ Bash List files/s) })
+
+  // Whether a session is a fork was asked once for each with a transcript; a done fork's transcript was read once.
+  expect(asked.lineage.flat().filter(id => id === 'zz-full')).toHaveLength(1)
+  expect(asked.lineage.flat().filter(id => id === 'f1-full')).toHaveLength(1)
+  expect(asked.activity.flat().filter(id => id === 'f1-full')).toHaveLength(1)
+
+  // A fork read while working is read again once it is done: its row dates from its turn's end.
+  world.clock = 1_060_000
+  world.agents = world.agents.map(one => (one.id === 'f2' ? { ...one, status: 'idle', state: 'done' } : one))
+  world.transcripts['f2-full'] = [...world.transcripts['f2-full']!, said(1_050_000, 'Listed.'), turnEnded(1_050_000)]
+  await pane.press({ key: 'refresh-status' })
+  expect(await pane.find({ key: 'conv-f2-full' })).toMatchObject({ text: expect.stringMatching(/✓ main ⑂ second.*done 10s ago/s) })
+  // Read as done, it is not read again.
+  const readsOfDone = asked.activity.flat().filter(id => id === 'f2-full').length
+  await pane.press({ key: 'refresh-status' })
+  expect(asked.activity.flat().filter(id => id === 'f2-full')).toHaveLength(readsOfDone)
+
+  // Attached and prompted again, it works again: read again, with its new turn.
+  world.clock = 1_100_000
+  world.agents = world.agents.map(one => (one.id === 'f2' ? { ...one, status: 'busy', state: 'working' } : one))
+  world.transcripts['f2-full'] = [...world.transcripts['f2-full']!, prompted('again'), ran(1_090_000, 'npm test', 'Run the tests')]
+  await pane.press({ key: 'refresh-status' })
+  expect(await pane.find({ key: 'conv-f2-full' })).toMatchObject({ text: expect.stringMatching(/working 10s.*↳ Bash Run the tests.*“again”/s) })
+
+  // A fork that no longer runs leaves the list.
+  world.agents = world.agents.filter(one => one.id !== 'f1')
+  await pane.press({ key: 'refresh-status' })
+  expect(await pane.find({ key: 'conv-f1-full' })).toBeUndefined()
+  expect(await pane.find({ key: 'conv-f2-full' })).toBeDefined()
+
+  // When `claude agents` cannot be read, the forks say so rather than show their last state.
+  world.agents = 'not json' as unknown as Agent[]
+  await pane.press({ key: 'refresh-status' })
+  expect(await pane.find({ key: 'conv-f2-full' })).toMatchObject({ text: expect.stringMatching(/○ session f2-full.*not read yet/s) })
+  await pane.unmount()
+})
+
+test('/hud records its pane as open for this session, keeping the other sessions\' records', async ($, on) => {
+  const world = { clock: 1_000_000, agents: [], related: [], transcripts: {} }
+  const { store } = stubEngine(on, world, { openPanes: { 'other-session': true } })
+  await $.session.start({ cwd: '/home/me/src/app', surface: 'terminal', isInteractive: true })
+  await $.command.run({ command: 'hud', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 160 } })
+  await settle()
+  expect(store.get('openPanes')).toEqual({ 'other-session': true, 's-main': true })
+})
+
+for (const isLeftOpen of [true, false])
+  test(`a session starting anew ${isLeftOpen ? 'opens the HUD it had open' : 'leaves the HUD closed when it was not open'}`, async ($, on) => {
+    const world = { clock: 1_000_000, agents: [], related: [], transcripts: {} }
+    const { asked } = stubEngine(on, world, { openPanes: isLeftOpen ? { 's-main': true } : { 'other-session': true } })
+    await $.session.start({ cwd: '/home/me/src/app', surface: 'terminal', isInteractive: true })
+    await settle()
+    // Once, though the start and the restore timer both look.
+    expect(asked.opened).toEqual(isLeftOpen ? ['session-hud'] : [])
+  })
+
+test('a failed store read writes nothing: the stored pins and open panes stay, and the pin lasts this session', async ($, on) => {
+  const world = {
+    clock: 1_000_000,
+    agents: [],
+    related: [],
+    transcripts: {},
+    isStoreDown: false,
+    commands: [{ name: 'standup', description: 'Write my standup', source: 'user' as const }],
+  }
+  const { store } = stubEngine(on, world, { pins: ['keep'], openPanes: { 'other-session': true } })
+  await $.session.start({ cwd: '/home/me/src/app', surface: 'terminal', isInteractive: true })
+  await settle()
+  world.isStoreDown = true
+  await $.command.run({ command: 'hud', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 160 } })
+  await settle()
+  const pane = await $.ui.mount(MOUNT)
+  await pane.press({ key: 'pin-user-standup' })
+  expect(store.get('pins')).toEqual(['keep'])
+  expect(store.get('openPanes')).toEqual({ 'other-session': true })
+  expect(await pane.find({ key: 'pin-pinned-standup' })).toBeDefined()
+  expect(await pane.find({ type: 'Text', text: /Could not save the pins/ })).toBeDefined()
+  await pane.unmount()
+})
+
+test('a refresh asked for while a read runs makes exactly one more read, which lists the new fork', async ($, on) => {
+  let open = () => {}
+  const world = {
+    clock: 1_000_000,
+    agents: [] as Agent[],
+    related: ['f1-full'],
+    transcripts: { 'f1-full': [turnEnded(950_000), prompted('first')] } as Record<string, string[]>,
+    gate: new Promise<void>(resolve => (open = resolve)) as Promise<void> | undefined,
+  }
+  const { asked } = stubEngine(on, world)
+  await $.session.start({ cwd: '/home/me/src/app', surface: 'terminal', isInteractive: true })
+  // /fork: its read starts and waits on `claude agents`.
+  await $.command.run({ command: 'fork', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 160 } })
+  await settle()
+  const before = asked.agentsReads
+  expect(before).toBe(1)
+  // The fork registers after that read began; another /fork asks while it runs.
+  world.agents = [agent('f1', 'main ⑂ first', 'idle')]
+  await $.command.run({ command: 'fork', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 160 } })
+  await settle()
+  expect(asked.agentsReads).toBe(before)
+  world.gate = undefined
+  open()
+  await settle()
+  expect(asked.agentsReads).toBe(before + 1)
+  const pane = await $.ui.mount(MOUNT)
+  expect(await pane.find({ key: 'conv-f1-full' })).toBeDefined()
+  await pane.unmount()
 })

@@ -1,6 +1,6 @@
 import type { CommandInfo } from 'claude-code'
 
-import type { CommandRow, Group, Scope, Status } from '../types'
+import type { Activity, CommandRow, Group, LiveSession, Scope, Status } from '../types'
 
 export const IDLE: Status = {
   phase: 'idle',
@@ -173,4 +173,106 @@ export const togglePin = (pins: readonly string[], name: string) =>
 export const withCommand = (name: string, draft: string) => {
   const rest = draft.replace(/^\s*\/\S*\s*/, '').trimStart()
   return `/${name} ${rest}`
+}
+
+/** Reads `claude agents --json`: the running sessions by session id; null for output it cannot read. */
+export const parseAgents = (stdout: string): Record<string, LiveSession> | null => {
+  let rows: unknown
+  try {
+    rows = JSON.parse(stdout)
+  } catch {
+    return null
+  }
+  if (!Array.isArray(rows)) return null
+  const str = (value: unknown) => (typeof value === 'string' ? value : null)
+  const sessions: Record<string, LiveSession> = {}
+  for (const row of rows as Record<string, unknown>[]) {
+    const sessionId = str(row?.sessionId)
+    if (!sessionId) continue
+    sessions[sessionId] = {
+      sessionId,
+      shortId: str(row.id),
+      name: str(row.name) ?? '',
+      kind: str(row.kind) ?? '',
+      status: str(row.status) ?? '',
+      state: str(row.state),
+      startedAt: typeof row.startedAt === 'number' ? row.startedAt : null,
+    }
+  }
+  return sessions
+}
+
+/** How a background session stands, in a word, and the color it is drawn in. */
+export const liveState = (session: LiveSession | undefined): { mark: string; word: string; color?: string } => {
+  if (!session) return { mark: '○', word: 'not read yet' }
+  if (session.state === 'done') return { mark: '✓', word: 'done', color: 'success' }
+  if (session.state === 'blocked') return { mark: '◐', word: 'waiting for you', color: 'permission' }
+  if (session.status === 'busy' || session.state === 'working') return { mark: '●', word: 'working', color: 'warning' }
+  return { mark: '○', word: 'idle' }
+}
+
+/**
+ * What a session was last doing, from the records at the end of its
+ * transcript (oldest first): its `last-prompt` record, its assistant messages
+ * (each tool call the latest step) and the `turn_duration` record that ends a turn.
+ * A turn's start is known only from a turn's end before it: with none in the
+ * records, the turn running started before them, and its start stays null.
+ */
+export const readActivity = (lines: readonly string[]): Activity => {
+  const activity: Activity = { prompt: '', tool: null, toolDetail: '', turnStartedAt: null, lastAt: null }
+  // Unknown until a turn's end is seen: the first step in the records need not be its turn's first.
+  let isTurnOver: boolean | null = null
+  for (const line of lines) {
+    let record: Record<string, unknown>
+    try {
+      record = JSON.parse(line) as Record<string, unknown>
+    } catch {
+      continue
+    }
+    if (record.isSidechain === true) continue
+    const at = typeof record.timestamp === 'string' ? Date.parse(record.timestamp) : NaN
+    if (record.type === 'last-prompt' && typeof record.lastPrompt === 'string') {
+      activity.prompt = promptLine(record.lastPrompt)
+      continue
+    }
+    if (record.type === 'system' && record.subtype === 'turn_duration') {
+      isTurnOver = true
+      activity.tool = null
+      activity.toolDetail = ''
+      activity.turnStartedAt = null
+      if (Number.isFinite(at)) activity.lastAt = at
+      continue
+    }
+    const message = record.message as { role?: unknown; content?: unknown } | undefined
+    if (message?.role !== 'assistant') continue
+    if (Number.isFinite(at)) {
+      if (isTurnOver === true) activity.turnStartedAt = at
+      activity.lastAt = at
+    }
+    // The turn's end, when it was seen, dates it; a step seen before any turn's end leaves it unknown.
+    if (isTurnOver === true) isTurnOver = false
+    for (const part of Array.isArray(message.content) ? (message.content as Record<string, unknown>[]) : []) {
+      if (part?.type === 'tool_use' && typeof part.name === 'string') {
+        activity.tool = part.name
+        activity.toolDetail = toolDetail(part.name, (part.input ?? {}) as Record<string, unknown>)
+      } else if (part?.type === 'text') {
+        // Text after a tool call: the tool is done and the turn is answering.
+        activity.tool = null
+        activity.toolDetail = ''
+      }
+    }
+  }
+  return activity
+}
+
+/** Splits the activity script's output into each session's lines, by the `@@@ <id>` line heading them. */
+export const splitBySession = (stdout: string) => {
+  const sessions: Record<string, string[]> = {}
+  let current: string[] | null = null
+  for (const line of stdout.split('\n')) {
+    const head = /^@@@ (\S+)$/.exec(line)
+    if (head) sessions[head[1]!] = current = []
+    else if (current && line) current.push(line)
+  }
+  return sessions
 }

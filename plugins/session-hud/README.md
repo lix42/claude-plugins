@@ -49,6 +49,33 @@ Bars turn amber at 70% and red at 90%.
 The times tick every second while a turn runs and every 15 seconds idle, only
 while the pane shows.
 
+#### Other sessions of this conversation
+
+Under the status, the pane lists this conversation's forks that run now as
+background sessions of their own (`/fork` starts one), oldest first, whoever
+started them. Each shows:
+
+- its name and state: `● working` (for how long its turn has run),
+  `◐ waiting for you`, `○ idle` or `✓ done` (how long ago it last did
+  anything), and its short id;
+- while it works, the tool it runs now, with a short detail;
+- its latest prompt.
+
+The running sessions come from `claude agents --json`; a fork is one whose
+transcript starts with the same message as this session's, as a fork's starts
+with the copy of its parent's (so a fork of a fork, or of this session's
+parent, is listed too). What each does is read from the end of its transcript.
+They are read when `/hud` opens the pane, shortly after `/fork`, every 10
+seconds while the pane shows, and when you press **↻** beside **Status**. The
+rows are for reading: a fork runs in a process of its own, which this window
+cannot switch to; `claude attach <id>` opens it in a terminal.
+
+#### Coming back to a session
+
+The pane opened with `/hud` opens again when you come back to the session, from
+the agent list or after a restart, until you close it yourself: the mod keeps,
+in its store, which sessions' panes are open.
+
 ### Skills & commands
 
 Every slash command the session has, in groups:

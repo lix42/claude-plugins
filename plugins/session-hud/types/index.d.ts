@@ -58,6 +58,34 @@ export type Status = {
   lastReason: 'answer' | 'aborted' | 'refusal' | 'error' | null
 }
 
+/** One running session as `claude agents --json` lists it. */
+export type LiveSession = {
+  sessionId: string
+  /** The short id `claude attach` takes, for a background session. */
+  shortId: string | null
+  name: string
+  kind: string
+  /** `idle` or `busy`. */
+  status: string
+  /** A background session's `working`, `blocked` (waiting for you) or `done`. */
+  state: string | null
+  /** When it started, ms since the epoch; null when not given. */
+  startedAt: number | null
+}
+
+/** What another session of this conversation was last doing, as the end of its transcript tells. */
+export type Activity = {
+  /** Its latest prompt, one line; '' when none was found. */
+  prompt: string
+  /** The tool its turn runs now, with a short detail; null between tools or once the turn ended. */
+  tool: string | null
+  toolDetail: string
+  /** When its running turn began; null when no turn runs. */
+  turnStartedAt: number | null
+  /** When it last did anything; null when nothing was found. */
+  lastAt: number | null
+}
+
 declare module 'claude-code' {
   interface PluginState {
     'session-hud': {
@@ -74,6 +102,12 @@ declare module 'claude-code' {
       notice: string | null
       /** The command whose whole description is shown (`group:name`), or null: one at a time. */
       expanded: string | null
+      /** The running sessions by session id, as last read; null before the first read. */
+      live: Record<string, LiveSession> | null
+      /** This conversation's forks running as background sessions, by session id, oldest first. */
+      forks: string[]
+      /** The forks' latest activity, by session id. */
+      activity: Record<string, Activity>
     }
   }
 }
