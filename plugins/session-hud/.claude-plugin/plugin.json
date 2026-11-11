@@ -1,0 +1,9 @@
+{
+  "name": "session-hud",
+  "version": "0.1.0",
+  "description": "A pane with the session at a glance: path, repo, branch and session; context, rate-limit and extra-usage cost; what Claude is doing and for how long; and the skills and commands by scope, pinnable, a press away from the prompt",
+  "author": {
+    "name": "lix42"
+  },
+  "types": "./types/index.d.ts"
+}

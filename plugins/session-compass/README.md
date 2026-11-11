@@ -10,7 +10,6 @@ This is not a skill: it is a hooks module, and it draws only in Claude Code.
 
 - **The session's name**, in the session's accent color: the name
   given with `/rename`, else the title Claude Code generated for the session.
-  It is also the pane's tab label when other panes are open.
 - **Where it runs**: the repository (or folder) and the branch.
 - **The history**, oldest first, as the transcript reads, with the newest entry
   at the bottom. Whenever what the pane shows changes, it scrolls to its end,

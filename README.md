@@ -29,7 +29,8 @@ Then enable individual plugins under `enabledPlugins`:
     "tasks@lix42": true,
     "ship@lix42": true,
     "pr-panel@lix42": true,
-    "session-compass@lix42": true
+    "session-compass@lix42": true,
+    "session-hud@lix42": true
   }
 }
 ```
@@ -45,7 +46,7 @@ codex plugin add tasks@lix42
 codex plugin add ship@lix42
 ```
 
-`pr-panel` and `session-compass` are not available in Codex: they need a host UI integration, not a skill.
+`pr-panel`, `session-compass` and `session-hud` are not available in Codex: they need a host UI integration, not a skill.
 
 ### OpenCode V2
 
@@ -394,3 +395,20 @@ to prompt**. See [plugins/session-compass/README.md](plugins/session-compass/REA
 | `/compass` | Open the pane |
 | `/compass color <name\|#hex\|next>` | Set this session's accent color |
 | `/compass resync` | Rebuild the history from the transcript |
+
+### session-hud
+
+A Claude Code mod that keeps the session's vital signs in a pane beside the
+chat: its path, repo, branch and session; how full the context window and the
+rate-limit windows are, and the cost once on extra usage; whether Claude is
+working (and on what, for how long), waiting for you, or idle; and every skill
+and command, grouped as Pinned, Project, User, Plugins (per plugin), MCP and
+Built-in. Pressing a command's name puts it in the prompt, `?>` shows its
+description, and ☆ pins it. Pins and open groups are kept across sessions. See
+[plugins/session-hud/README.md](plugins/session-hud/README.md).
+
+#### Commands
+
+| Command | Description |
+|---------|-------------|
+| `/hud` | Open the pane |
