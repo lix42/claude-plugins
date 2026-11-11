@@ -1,7 +1,7 @@
 import type { EngineInterface } from 'claude-code'
 
-import type { CommandRow, Group, Place, Section, Status, Usage } from '../types'
-import { GROUPS, LIMIT_LABELS, byPlugin, rowsOf, bar, elapsed, isOnExtraUsage, levelColor, resetsIn, tokens } from './model'
+import type { Activity, CommandRow, Group, LiveSession, Place, Section, Status, Usage } from '../types'
+import { GROUPS, LIMIT_LABELS, byPlugin, liveState, rowsOf, bar, elapsed, isOnExtraUsage, levelColor, resetsIn, tokens } from './model'
 
 type Ui = ReturnType<EngineInterface['ui']['resolve']>
 
@@ -15,6 +15,9 @@ export type HudModel = {
   pins: readonly string[]
   notice: string | null
   expanded: string | null
+  live: Readonly<Record<string, LiveSession>> | null
+  forks: readonly string[]
+  activity: Readonly<Record<string, Activity>>
 }
 
 export type HudHandlers = {
@@ -22,6 +25,8 @@ export type HudHandlers = {
   toggle: (section: Section) => void
   pin: (name: string) => void
   refresh: () => void
+  /** Reads the forks and their states, the usage and the place again. */
+  refreshStatus: () => void
   dismissNotice: () => void
   expand: (id: string) => void
 }
@@ -209,6 +214,66 @@ const renderPlugins = (ui: Ui, rows: readonly CommandRow[], model: HudModel, han
   })
 }
 
+/**
+ * This conversation's forks running as background sessions of their own,
+ * oldest first: each with its state, what it does now and its latest prompt,
+ * read from its transcript. Shown once there is one.
+ */
+const renderSessions = (ui: Ui, model: HudModel) => {
+  const { Box, Text } = ui
+  if (model.forks.length === 0) return null
+  const fork = (id: string) => {
+    const session = model.live?.[id]
+    const state = liveState(session)
+    const doing = model.activity[id]
+    const isWorking = state.word === 'working'
+    const time = isWorking
+      ? doing?.turnStartedAt
+        ? elapsed(model.now - doing.turnStartedAt)
+        : ''
+      : doing?.lastAt
+        ? `${elapsed(model.now - doing.lastAt)} ago`
+        : ''
+    return (
+      <Box key={`conv-${id}`} flexDirection="column">
+        <Text wrap="truncate">
+          <Text color={state.color} dimColor={!state.color}>
+            {state.mark}{' '}
+          </Text>
+          <Text>{session?.name || `session ${id.slice(0, 8)}`}</Text>
+        </Text>
+        <Text key="state" wrap="truncate">
+          {'  '}
+          <Text color={state.color} dimColor={!state.color}>
+            {state.word}
+          </Text>
+          {time ? <Text dimColor> {time}</Text> : ''}
+          <Text dimColor> · ⑂ fork {session?.shortId ?? id.slice(0, 8)}</Text>
+        </Text>
+        {isWorking && doing?.tool && (
+          <Text key="tool" wrap="truncate">
+            {'  '}
+            <Text dimColor>↳ </Text>
+            <Text color="suggestion">{doing.tool}</Text>
+            {doing.toolDetail ? <Text dimColor> {doing.toolDetail}</Text> : ''}
+          </Text>
+        )}
+        {doing?.prompt && (
+          <Text key="prompt" wrap="truncate" italic dimColor>
+            {'  '}“{doing.prompt}”
+          </Text>
+        )}
+      </Box>
+    )
+  }
+  return (
+    <Box key="sessions" flexDirection="column" paddingTop={1} gap={1}>
+      <Text dimColor>Other sessions of this conversation</Text>
+      {model.forks.map(fork)}
+    </Box>
+  )
+}
+
 const renderCommands = (ui: Ui, model: HudModel, handlers: HudHandlers) => {
   const { Box, Text, Button } = ui
   return (
@@ -263,8 +328,12 @@ export const renderHud = (ui: Ui, model: HudModel, handlers: HudHandlers) => {
       </Box>
       {/* Above the commands: their list runs long, and the status is what changes. */}
       <Box key="status" flexDirection="column">
-        {Heading(ui, 'Status')}
+        <Box>
+          {Heading(ui, 'Status')}
+          <Button key="refresh-status" label="↻" plain dimColor onPress={handlers.refreshStatus} />
+        </Box>
         {renderStatus(ui, model)}
+        {renderSessions(ui, model)}
       </Box>
       <Box key="commands" flexDirection="column">
         <Box>

@@ -1,8 +1,22 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, SessionContextUsage, SessionCost, SessionRateLimit } from 'claude-code'
 
-import type { CommandRow, Place, Section, Status, Usage } from '../types'
-import { ASKS_PERSON, GROUPS, IDLE, classify, promptLine, repoName, tildePath, toolDetail, togglePin, withCommand } from './model'
+import type { Activity, CommandRow, LiveSession, Place, Section, Status, Usage } from '../types'
+import {
+  ASKS_PERSON,
+  GROUPS,
+  IDLE,
+  classify,
+  parseAgents,
+  promptLine,
+  readActivity,
+  repoName,
+  splitBySession,
+  tildePath,
+  toolDetail,
+  togglePin,
+  withCommand,
+} from './model'
 import { renderHud } from './view'
 
 const PANE = 'session-hud'
@@ -19,9 +33,10 @@ const now = atom({ plugin: 'session-hud', key: 'now' } as const, 0)
 const open = atom({ plugin: 'session-hud', key: 'open' } as const, {} as Partial<Record<Section, boolean>>)
 const pins = atom({ plugin: 'session-hud', key: 'pins' } as const, [] as string[])
 
-/** The store's keys for the pins and the open sections, kept across sessions. */
+/** The store's keys, kept across sessions: the pins, the open sections, and the sessions whose HUD is open. */
 const STORE_PINS = 'pins'
 const STORE_OPEN = 'open'
+const STORE_OPEN_PANES = 'openPanes'
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -35,15 +50,174 @@ const loadOpen = async ($: EngineInterface) => {
   if (isRecord(kept)) await update($, open, all => ({ ...all, ...asOpen(kept) }))
 }
 
+const asPins = (value: unknown) => (Array.isArray(value) ? value.filter((name): name is string => typeof name === 'string') : [])
+
 const loadPins = async ($: EngineInterface) => {
   const kept = await $.store.get(STORE_PINS)
-  if (Array.isArray(kept)) await update($, pins, () => kept.filter((name): name is string => typeof name === 'string'))
+  if (Array.isArray(kept)) await update($, pins, () => asPins(kept))
+}
+
+/**
+ * Changes one value of the store as it stands right before the write, so what
+ * another session wrote meanwhile is kept; resolves the new value. `parse`
+ * reads the stored value, whatever shape it has. The store has no
+ * compare-and-set: two writes in the same instant can still lose one.
+ */
+const changeStored = async <T,>($: EngineInterface, key: string, parse: (value: unknown) => T, fn: (value: T) => T) => {
+  // A failed read rejects before anything is written: taken as empty, it would overwrite what is stored.
+  const next = fn(parse(await $.store.get(key)))
+  await $.store.set(key, next)
+  return next
 }
 const notice = atom({ plugin: 'session-hud', key: 'notice' } as const, null as string | null)
 const expanded = atom({ plugin: 'session-hud', key: 'expanded' } as const, null as string | null)
+const live = atom({ plugin: 'session-hud', key: 'live' } as const, null as Record<string, LiveSession> | null)
+const forks = atom({ plugin: 'session-hud', key: 'forks' } as const, [] as string[])
+const activity = atom({ plugin: 'session-hud', key: 'activity' } as const, {} as Record<string, Activity>)
+
+/** Values fixed for the process: read once. */
+const fixed: { configDir?: string } = {}
 
 const configDir = async ($: EngineInterface) =>
-  (await $.env.get('CLAUDE_CONFIG_DIR')) ?? `${(await $.env.get('HOME')) ?? ''}/.claude`
+  (fixed.configDir ??= (await $.env.get('CLAUDE_CONFIG_DIR')) ?? `${(await $.env.get('HOME')) ?? ''}/.claude`)
+
+/** Shell: sets `f` to session `$id`'s transcript under the config folder `$d`, or to '' (as session-compass finds one). */
+const FIND_TRANSCRIPT = 'f=$(ls "$d"/projects/*/"$id".jsonl 2>/dev/null | head -n 1)'
+
+/**
+ * Prints, for each candidate session given after the config folder and this
+ * session's id, `+<id>` when its transcript starts with the same message as
+ * this session's (a fork's starts with the copy of its parent's), `-<id>` when
+ * it starts otherwise, and nothing while it has no transcript yet.
+ */
+const LINEAGE_SCRIPT =
+  'd="$1"; shift; ' +
+  `first() { id="$1"; ${FIND_TRANSCRIPT}; [ -n "$f" ] && grep -m 1 -o '"uuid":"[^"]*"' "$f"; }; ` +
+  'mine=$(first "$1"); shift; [ -n "$mine" ] || exit 0; ' +
+  'for c in "$@"; do u=$(first "$c"); [ -n "$u" ] || continue; if [ "$u" = "$mine" ]; then echo "+$c"; else echo "-$c"; fi; done; exit 0'
+
+/**
+ * Prints, for each session id given after the config folder, `@@@ <id>` and
+ * then the records at the end of its transcript that say what it does: its
+ * latest prompt, its assistant messages and its turns' ends (subagents' left
+ * out, and the large request records the filter would otherwise wade through).
+ */
+const ACTIVITY_SCRIPT =
+  'd="$1"; shift; for id in "$@"; do ' +
+  `${FIND_TRANSCRIPT}; [ -n "$f" ] || continue; echo "@@@ $id"; ` +
+  `r=$(tail -c 1000000 "$f" | grep -v -e '^{"type":"api-request' -e '"isSidechain":true' | ` +
+  `grep -e '^{"type":"last-prompt"' -e '"role":"assistant"' -e '"subtype":"turn_duration"'); ` +
+  // First the last turn's end and the step after it, which a long turn pushes out of the last 12: they date the turn running.
+  `printf '%s\\n' "$r" | awk '/"subtype":"turn_duration"/ { e = $0; s = ""; next } /"role":"assistant"/ { if (s == "") s = $0 } END { if (e != "") print e; if (s != "") print s }'; ` +
+  `printf '%s\\n' "$r" | tail -n 12; ` +
+  'done; exit 0'
+
+/**
+ * Whether each running session seen is a fork of this conversation. A
+ * session's history does not change, so each is checked once, for as long as
+ * this session is the one running (/clear starts another).
+ */
+const lineage = { of: '', related: new Map<string, boolean>() }
+
+/** When the running sessions were last read, whether a read is under way, and whether another was asked for meanwhile. */
+const sessionsRead = { isRunning: false, isRerunWanted: false, lastAt: 0 }
+
+/** The state each fork's activity was last read in: a fork read as done has nothing more to read. */
+const activityReadIn = new Map<string, string | null>()
+
+/**
+ * Reads the running sessions (`claude agents --json`) and picks out this
+ * conversation's forks: background sessions whose history starts like this
+ * one's, whoever started them, so a restart finds them again. Then reads what
+ * those not done yet are doing. One read at a time.
+ */
+const refreshSessions = async ($: EngineInterface): Promise<void> => {
+  if (sessionsRead.isRunning) {
+    // The read under way may have started before what asked for this one (a /fork): one more follows it.
+    sessionsRead.isRerunWanted = true
+    return
+  }
+  sessionsRead.isRunning = true
+  sessionsRead.isRerunWanted = false
+  try {
+    sessionsRead.lastAt = await $.clock.now()
+    const [ran, me, dir] = await Promise.all([
+      $.process.run(['claude', 'agents', '--json'], { timeoutMs: 15_000 }).catch(() => null),
+      $.session.id(),
+      configDir($),
+    ])
+    const sessions = ran?.exitCode === 0 ? parseAgents(ran.stdout) : null
+    if (!sessions) {
+      const why = !ran ? 'it did not run (missing, failed to start, or timed out)' : ran.exitCode !== 0 ? `it exited ${ran.exitCode}` : 'its output was not a list of sessions'
+      $.ui.log(`session-hud: claude agents --json could not be read: ${why}`, { to: 'debug' })
+      // Unread rather than stale: the forks' rows say "not read yet" until a read succeeds.
+      await update($, live, () => null)
+      return
+    }
+    if (lineage.of !== me) {
+      lineage.of = me
+      lineage.related.clear()
+    }
+    const background = Object.values(sessions).filter(session => session.kind === 'background' && session.sessionId !== me)
+    const unchecked = background.filter(session => !lineage.related.has(session.sessionId)).map(session => session.sessionId)
+    if (unchecked.length > 0) {
+      const checked = await $.process.run(['sh', '-c', LINEAGE_SCRIPT, 'sh', dir, me, ...unchecked], { timeoutMs: 10_000 }).catch(() => null)
+      for (const line of checked?.exitCode === 0 ? checked.stdout.split('\n') : []) {
+        if (line[0] === '+' || line[0] === '-') lineage.related.set(line.slice(1), line[0] === '+')
+      }
+    }
+    const found = background
+      .filter(session => lineage.related.get(session.sessionId) === true)
+      .sort((a, b) => (a.startedAt ?? 0) - (b.startedAt ?? 0))
+    await update($, live, () => sessions)
+    await update($, forks, () => found.map(session => session.sessionId))
+    await refreshActivity($, found, dir)
+  } finally {
+    sessionsRead.isRunning = false
+    // Whatever this read came to, a failure included; started apart, so no chain of reads builds up.
+    if (sessionsRead.isRerunWanted) void refreshSessions($).catch(() => undefined)
+  }
+}
+
+/** Reads what the forks are doing from their transcripts: each not yet read since it was done. */
+const refreshActivity = async ($: EngineInterface, found: readonly LiveSession[], dir: string) => {
+  const known = await read($, activity)
+  const ids = found
+    // A fork done now and read as done has nothing new; one at work again (attached, prompted) is read again.
+    .filter(session => !Object.hasOwn(known, session.sessionId) || session.state !== 'done' || activityReadIn.get(session.sessionId) !== 'done')
+    .map(session => session.sessionId)
+  const kept = new Set(found.map(session => session.sessionId))
+  for (const id of activityReadIn.keys()) if (!kept.has(id)) activityReadIn.delete(id)
+  const ran = ids.length > 0 ? await $.process.run(['sh', '-c', ACTIVITY_SCRIPT, 'sh', dir, ...ids], { timeoutMs: 10_000 }).catch(() => null) : null
+  const fresh = ran?.exitCode === 0 ? splitBySession(ran.stdout) : {}
+  for (const session of found) if (Object.hasOwn(fresh, session.sessionId)) activityReadIn.set(session.sessionId, session.state)
+  // Forks no longer running drop out.
+  await update($, activity, all =>
+    Object.fromEntries([
+      ...Object.entries(all).filter(([id]) => kept.has(id) && !Object.hasOwn(fresh, id)),
+      ...Object.entries(fresh).map(([id, lines]) => [id, readActivity(lines)] as const),
+    ]),
+  )
+}
+
+/** Sessions whose open HUD the store remembers, the oldest dropping first. */
+const MAX_OPEN_PANES = 50
+/** Whether this session's HUD is to be open, as the store says; a module value, read again at each start. */
+const paneWish = { isWanted: false, isRestoring: false }
+
+/** Records whether the person wants this session's HUD open, in the store, so a new process opens it again. */
+const wantPane = async ($: EngineInterface, isWanted: boolean) => {
+  paneWish.isWanted = isWanted
+  const id = await $.session.id()
+  await changeStored($, STORE_OPEN_PANES, value => (isRecord(value) ? value : {}), ({ [id]: _old, ...others }) =>
+    Object.fromEntries([...Object.entries(others), ...(isWanted ? [[id, true]] : [])].slice(-MAX_OPEN_PANES)),
+  ).catch(() => undefined)
+}
+
+const isPaneWanted = async ($: EngineInterface) => {
+  const [kept, id] = await Promise.all([$.store.get(STORE_OPEN_PANES).catch(() => undefined), $.session.id()])
+  return isRecord(kept) && kept[id] === true
+}
 
 const resolvePlace = async ($: EngineInterface): Promise<Place> => {
   const cwd = await $.session.cwd()
@@ -117,6 +291,7 @@ const setStatus = ($: EngineInterface, fn: (s: Status) => Status) => update($, s
 
 const openPane = async ($: EngineInterface) => {
   await update($, now, () => Date.now())
+  void wantPane($, true).catch(() => undefined)
   const opened = await $.ui.open({ id: PANE, title: TITLE, columns: PANE_COLUMNS })
   if (!opened.isPlaced) return `Session HUD is open but waits undrawn: ${opened.reason}`
   return 'Session HUD opened.'
@@ -125,15 +300,54 @@ const openPane = async ($: EngineInterface) => {
 /** When the pane's clock last moved, kept per module: a reload starts it over. */
 const ticker = { lastTick: 0 }
 
-/** The elapsed times tick while the pane shows: every second while a turn runs, every 15 seconds idle. */
+/** How often a HUD the person wants open, and that is not, is opened again. */
+const RESTORE_EVERY_MS = 5_000
+/** How often the running sessions are read while the pane shows. */
+const SESSIONS_EVERY_MS = 10_000
+
+/**
+ * Opens the HUD again when the person wants it open and it is not: a session
+ * left for another (the agent list) and come back to may draw without it.
+ */
+const restorePane = async ($: EngineInterface) => {
+  // One at a time: the start and the timer may both find it missing.
+  if (!paneWish.isWanted || paneWish.isRestoring) return
+  paneWish.isRestoring = true
+  try {
+    if (!(await $.ui.panes()).some(pane => pane.id === PANE)) await $.ui.open({ id: PANE, title: TITLE, columns: PANE_COLUMNS })
+  } finally {
+    paneWish.isRestoring = false
+  }
+}
+
+/**
+ * While the pane shows: the elapsed times tick, every second while a turn runs
+ * and every 15 seconds idle, and the running sessions are read every 10 seconds.
+ */
 const tick = async ($: EngineInterface) => {
   const at = await $.clock.now()
-  const phase = (await read($, status)).phase
-  if (phase === 'idle' && at - ticker.lastTick < 15_000) return
-  const panes = await $.ui.panes()
-  if (!panes.some(pane => pane.id === PANE && pane.isShown)) return
+  const isIdle = (await read($, status)).phase === 'idle'
+  const isTimeDue = !isIdle || at - ticker.lastTick >= 15_000
+  const isSessionsDue = at - sessionsRead.lastAt >= SESSIONS_EVERY_MS
+  if (!isTimeDue && !isSessionsDue) return
+  // Counted as done even while the pane is hidden, so a hidden pane is asked about once a period.
+  if (isSessionsDue) sessionsRead.lastAt = at
+  if (!(await $.ui.panes()).some(pane => pane.id === PANE && pane.isShown)) return
+  if (isSessionsDue) void refreshSessions($).catch(() => undefined)
+  if (!isTimeDue) return
   ticker.lastTick = at
   await update($, now, () => at)
+}
+
+/** What the pane shows of the session, read again: after a start, a new conversation, a refresh. */
+const refreshContext = ($: EngineInterface) => Promise.all([refreshUsage($), refreshPlace($)])
+
+/** Everything the pane shows, read again: `$.state` starts over at a start and at each new conversation. */
+const reloadState = ($: EngineInterface) => {
+  void refreshContext($)
+  void refreshCommands($).catch(error => update($, notice, () => `Could not list commands: ${String(error)}`))
+  void loadPins($).catch(() => undefined)
+  void loadOpen($).catch(() => undefined)
 }
 
 export const register: Register = on => {
@@ -143,22 +357,26 @@ export const register: Register = on => {
       name: 'hud',
       description: 'Show the session HUD pane: context, usage, status, and skills and commands to insert',
     })
-    // A reload keeps the state but not the timer: started once per module.
+    // A reload keeps the state but not the timers: started once per module.
     $.clock.every(1_000, () => void tick($).catch(() => undefined))
-    void refreshPlace($)
-    void refreshUsage($)
-    void refreshCommands($).catch(error => update($, notice, () => `Could not list commands: ${String(error)}`))
-    void loadPins($).catch(() => undefined)
-    void loadOpen($).catch(() => undefined)
+    $.clock.every(RESTORE_EVERY_MS, () => void restorePane($).catch(() => undefined))
+    // The HUD the person left open in this session opens again, in a new process too.
+    void isPaneWanted($)
+      .then(async isWanted => {
+        paneWish.isWanted = isWanted
+        if (isWanted) await restorePane($)
+      })
+      .catch(() => undefined)
+    reloadState($)
     return started
   }).catch(($, e, next) => next(e))
 
   // /clear, /resume and /branch start a new conversation in this window.
+  // Each resets every $.state value: what the pane shows is read again.
   on('classic.SessionStart', { source: ['clear', 'resume', 'fork'] }, async ($, e, next) => {
     const started = await next(e)
     await update($, status, () => IDLE)
-    void refreshPlace($)
-    void refreshUsage($)
+    reloadState($)
     return started
   }).catch(($, e, next) => next(e))
 
@@ -238,12 +456,22 @@ export const register: Register = on => {
         lastReason: e.reason,
       }))
       // A turn may have switched branches or worktrees, or written a new skill.
-      void refreshPlace($)
-      void refreshUsage($)
+      void refreshContext($)
       void refreshCommands($).catch(() => undefined)
     }
     return done
   }).catch(($, e, next) => next(e))
+
+  // /fork starts the fork as a background session of its own: read as soon as its transcript is likely written.
+  for (const command of ['fork', 'branch'])
+    on('command.run', { command }, async ($, e, next) => {
+      const ran = await next(e)
+      void $.clock
+        .sleep(2_000)
+        .then(() => refreshSessions($))
+        .catch(() => undefined)
+      return ran
+    }).catch(($, e, next) => next(e))
 
   // /model changes what the context line says.
   on('command.run', { command: 'model' }, async ($, e, next) => {
@@ -252,7 +480,16 @@ export const register: Register = on => {
     return ran
   }).catch(($, e, next) => next(e))
 
-  on('command.run', { command: 'hud' }, async $ => ({ text: await openPane($) })).catch(() => ({
+  // Closed by the person: it stays closed, here and when the session comes back.
+  on('ui.close', async ($, e, next) => {
+    if (e.id === PANE && e.origin.kind === 'person') await wantPane($, false)
+    return next(e)
+  }).catch(($, e, next) => next(e))
+
+  on('command.run', { command: 'hud' }, async $ => {
+    void refreshSessions($).catch(() => undefined)
+    return { text: await openPane($) }
+  }).catch(() => ({
     text: 'session-hud: /hud failed; see the debug log.',
   }))
 
@@ -268,6 +505,9 @@ export const register: Register = on => {
       pins: await read($, pins),
       notice: await read($, notice),
       expanded: await read($, expanded),
+      live: await read($, live),
+      forks: await read($, forks),
+      activity: await read($, activity),
     }
     return renderHud($.ui.resolve(e), model, {
       insert: name =>
@@ -281,28 +521,29 @@ export const register: Register = on => {
         void (async () => {
           // A plugin's sub-group, as any group not listed, starts closed.
           const isOpenByDefault = GROUPS.find(one => one.scope === section)?.isOpenByDefault ?? false
-          // Read from the store, so a section another session opened or closed meanwhile keeps that.
-          const kept = await $.store.get(STORE_OPEN).catch(() => undefined)
-          const base = isRecord(kept) ? { ...(await read($, open)), ...asOpen(kept) } : await read($, open)
-          const next = { ...base, [section]: !(base[section] ?? isOpenByDefault) }
+          const current = await read($, open)
+          // On the store as it stands, so a section another session opened or closed meanwhile keeps that.
+          const next = await changeStored($, STORE_OPEN, value => ({ ...current, ...(isRecord(value) ? asOpen(value) : {}) }), all => ({
+            ...all,
+            [section]: !(all[section] ?? isOpenByDefault),
+          })).catch(() => ({ ...current, [section]: !(current[section] ?? isOpenByDefault) }))
           await update($, open, () => next)
-          await $.store.set(STORE_OPEN, next).catch(() => undefined)
         })(),
       pin: name =>
         void (async () => {
-          // Read from the store, so a pin another session made meanwhile is kept.
-          const kept = await $.store.get(STORE_PINS).catch(() => undefined)
-          const base = Array.isArray(kept) ? kept.filter((one): one is string => typeof one === 'string') : await read($, pins)
-          const next = togglePin(base, name)
+          // On the store as it stands, so a pin another session made meanwhile is kept.
+          const next = await changeStored($, STORE_PINS, asPins, list => togglePin(list, name)).catch(async () => {
+            await update($, notice, () => 'Could not save the pins; they last this session only.')
+            return togglePin(await read($, pins), name)
+          })
           await update($, pins, () => next)
-          await $.store.set(STORE_PINS, next).catch(() => update($, notice, () => 'Could not save the pins; they last this session only.'))
         })(),
       refresh: () =>
         void (async () => {
           await refreshCommands($).catch(error => update($, notice, () => `Could not list commands: ${String(error)}`))
-          await refreshUsage($)
-          await refreshPlace($)
+          await refreshContext($)
         })(),
+      refreshStatus: () => void Promise.all([refreshSessions($), refreshContext($)]).catch(() => undefined),
       dismissNotice: () => void update($, notice, () => null),
       // Opening one closes the other; pressing the open one again closes it.
       expand: id => void update($, expanded, current => (current === id ? null : id)),

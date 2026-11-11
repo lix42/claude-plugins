@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { byPlugin, isOnExtraUsage, repoName, rowsOf, togglePin, withCommand } from '../hooks/model'
+import { byPlugin, readActivity, splitBySession, isOnExtraUsage, repoName, rowsOf, togglePin, withCommand } from '../hooks/model'
 
 test('the repo is named from the engine, else the origin remote, else the folder', () => {
   const at = (remote: string | null, name: string | null = null) => repoName({ root: '/src/app', remote, name })
@@ -44,4 +44,31 @@ test('plugin commands split by plugin, sorted by name, an unknown plugin under o
     ['ship', ['ship:ship', 'ship:rebase']],
     ['tasks', ['tasks:next']],
   ])
+})
+
+test('what a session does is read from the end of its transcript', () => {
+  const at = (ms: number) => new Date(ms).toISOString()
+  const line = (record: object) => JSON.stringify(record)
+  const finished = [
+    line({ message: { role: 'assistant', content: [{ type: 'tool_use', name: 'Read', input: { file_path: '/a/b.ts' } }] }, timestamp: at(1_000) }),
+    line({ type: 'system', subtype: 'turn_duration', timestamp: at(2_000) }),
+    line({ type: 'last-prompt', lastPrompt: 'run   the\ntests' }),
+  ]
+  expect(readActivity(finished)).toEqual({ prompt: 'run the tests', tool: null, toolDetail: '', turnStartedAt: null, lastAt: 2_000 })
+  const working = [
+    ...finished,
+    line({ message: { role: 'assistant', content: [{ type: 'text', text: 'On it.' }] }, timestamp: at(3_000) }),
+    line({ message: { role: 'assistant', content: [{ type: 'tool_use', name: 'Bash', input: { command: 'npm test', description: 'Run the tests' } }] }, timestamp: at(4_000) }),
+    // A subagent's step is not the session's own; a line cut short is skipped.
+    line({ isSidechain: true, message: { role: 'assistant', content: [{ type: 'tool_use', name: 'Grep', input: {} }] }, timestamp: at(5_000) }),
+    '{"message":{"role":"assis',
+  ]
+  expect(readActivity(working)).toEqual({ prompt: 'run the tests', tool: 'Bash', toolDetail: 'Run the tests', turnStartedAt: 3_000, lastAt: 4_000 })
+  // A long turn whose start is before the records: its tool shows, its start stays unknown.
+  const midTurn = working.slice(3)
+  expect(readActivity(midTurn)).toMatchObject({ tool: 'Bash', turnStartedAt: null, lastAt: 4_000 })
+})
+
+test('the activity output is split by the session heading each part', () => {
+  expect(splitBySession('@@@ a\nx\ny\n@@@ b\n\n@@@ c\nz\n')).toEqual({ a: ['x', 'y'], b: [], c: ['z'] })
 })
