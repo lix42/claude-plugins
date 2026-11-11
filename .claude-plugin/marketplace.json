@@ -29,6 +29,12 @@
       "description": "A pane that keeps you oriented in a session: its name, repo and branch in a per-session accent color, and its history of prompts and responses with commands, skills and tools highlighted, long ones summarized to one line",
       "source": "./plugins/session-compass",
       "category": "productivity"
+    },
+    {
+      "name": "session-hud",
+      "description": "A pane with the session at a glance: path, repo, branch and session; context, rate-limit and extra-usage cost; what Claude is doing and for how long; and the skills and commands by scope, pinnable, a press away from the prompt",
+      "source": "./plugins/session-hud",
+      "category": "productivity"
     }
   ]
 }
