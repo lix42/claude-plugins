@@ -386,15 +386,28 @@ test('/hud records its pane as open for this session, keeping the other sessions
   expect(store.get('openPanes')).toEqual({ 'other-session': true, 's-main': true })
 })
 
-for (const isLeftOpen of [true, false])
-  test(`a session starting anew ${isLeftOpen ? 'opens the HUD it had open' : 'leaves the HUD closed when it was not open'}`, async ($, on) => {
+for (const [kept, isOpened] of [
+  [{ 's-main': true }, true],
+  [{ 'other-session': false }, true],
+  [undefined, true],
+  [{ 's-main': false }, false],
+] as const)
+  test(`a session starting with ${JSON.stringify(kept)} stored ${isOpened ? 'opens the HUD by itself' : 'leaves the HUD the person closed closed'}`, async ($, on) => {
     const world = { clock: 1_000_000, agents: [], related: [], transcripts: {} }
-    const { asked } = stubEngine(on, world, { openPanes: isLeftOpen ? { 's-main': true } : { 'other-session': true } })
+    const { asked } = stubEngine(on, world, kept ? { openPanes: kept } : {})
     await $.session.start({ cwd: '/home/me/src/app', surface: 'terminal', isInteractive: true })
     await settle()
     // Once, though the start and the restore timer both look.
-    expect(asked.opened).toEqual(isLeftOpen ? ['session-hud'] : [])
+    expect(asked.opened).toEqual(isOpened ? ['session-hud'] : [])
   })
+
+test('a store that cannot be read opens nothing', async ($, on) => {
+  const world = { clock: 1_000_000, agents: [], related: [], transcripts: {}, isStoreDown: true }
+  const { asked } = stubEngine(on, world)
+  await $.session.start({ cwd: '/home/me/src/app', surface: 'terminal', isInteractive: true })
+  await settle()
+  expect(asked.opened).toEqual([])
+})
 
 test('a failed store read writes nothing: the stored pins and open panes stay, and the pin lasts this session', async ($, on) => {
   const world = {
