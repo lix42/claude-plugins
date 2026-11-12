@@ -33,7 +33,7 @@ const now = atom({ plugin: 'session-hud', key: 'now' } as const, 0)
 const open = atom({ plugin: 'session-hud', key: 'open' } as const, {} as Partial<Record<Section, boolean>>)
 const pins = atom({ plugin: 'session-hud', key: 'pins' } as const, [] as string[])
 
-/** The store's keys, kept across sessions: the pins, the open sections, and the sessions whose HUD is open. */
+/** The store's keys, kept across sessions: the pins, the open sections, and each session's HUD left open or closed. */
 const STORE_PINS = 'pins'
 const STORE_OPEN = 'open'
 const STORE_OPEN_PANES = 'openPanes'
@@ -200,23 +200,37 @@ const refreshActivity = async ($: EngineInterface, found: readonly LiveSession[]
   )
 }
 
-/** Sessions whose open HUD the store remembers, the oldest dropping first. */
+/** Sessions whose HUD the store remembers as open or closed, the oldest dropping first. */
 const MAX_OPEN_PANES = 50
 /** Whether this session's HUD is to be open, as the store says; a module value, read again at each start. */
 const paneWish = { isWanted: false, isRestoring: false }
 
-/** Records whether the person wants this session's HUD open, in the store, so a new process opens it again. */
+/**
+ * Records whether the person wants this session's HUD open, in the store, so a
+ * new process opens it again, or leaves it closed: `true` or `false` per session.
+ */
 const wantPane = async ($: EngineInterface, isWanted: boolean) => {
   paneWish.isWanted = isWanted
   const id = await $.session.id()
   await changeStored($, STORE_OPEN_PANES, value => (isRecord(value) ? value : {}), ({ [id]: _old, ...others }) =>
-    Object.fromEntries([...Object.entries(others), ...(isWanted ? [[id, true]] : [])].slice(-MAX_OPEN_PANES)),
+    Object.fromEntries([...Object.entries(others), [id, isWanted]].slice(-MAX_OPEN_PANES)),
   ).catch(() => undefined)
 }
 
+/**
+ * Whether this session's HUD is to be open: yes unless the person closed it in
+ * this session. A new session has no record, so its HUD opens by itself. An
+ * unreadable store opens nothing.
+ */
 const isPaneWanted = async ($: EngineInterface) => {
-  const [kept, id] = await Promise.all([$.store.get(STORE_OPEN_PANES).catch(() => undefined), $.session.id()])
-  return isRecord(kept) && kept[id] === true
+  const [kept, id] = await Promise.all([$.store.get(STORE_OPEN_PANES).catch(() => null), $.session.id()])
+  return kept !== null && (!isRecord(kept) || kept[id] !== false)
+}
+
+/** Reads this session's wish from the store and opens the HUD when it is wanted and not open. */
+const loadPaneWish = async ($: EngineInterface) => {
+  paneWish.isWanted = await isPaneWanted($)
+  if (paneWish.isWanted) await restorePane($)
 }
 
 const resolvePlace = async ($: EngineInterface): Promise<Place> => {
@@ -360,13 +374,8 @@ export const register: Register = on => {
     // A reload keeps the state but not the timers: started once per module.
     $.clock.every(1_000, () => void tick($).catch(() => undefined))
     $.clock.every(RESTORE_EVERY_MS, () => void restorePane($).catch(() => undefined))
-    // The HUD the person left open in this session opens again, in a new process too.
-    void isPaneWanted($)
-      .then(async isWanted => {
-        paneWish.isWanted = isWanted
-        if (isWanted) await restorePane($)
-      })
-      .catch(() => undefined)
+    // The HUD opens by itself: in a new session, and in one the person left it open in.
+    void loadPaneWish($).catch(() => undefined)
     reloadState($)
     return started
   }).catch(($, e, next) => next(e))
@@ -376,6 +385,8 @@ export const register: Register = on => {
   on('classic.SessionStart', { source: ['clear', 'resume', 'fork'] }, async ($, e, next) => {
     const started = await next(e)
     await update($, status, () => IDLE)
+    // Another session id: its own wish counts, so a new conversation opens the HUD too.
+    void loadPaneWish($).catch(() => undefined)
     reloadState($)
     return started
   }).catch(($, e, next) => next(e))

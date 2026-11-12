@@ -8,7 +8,12 @@ This is not a skill: it is a hooks module, and it draws only in Claude Code.
 
 ## Opening it
 
-Run `/hud`. The pane's tab reads `hud`.
+The pane opens by itself when a session starts, and again after `/clear`,
+`/resume` or `/branch`. Its tab reads `hud`. If you close it, it stays closed
+for that session, also when the session comes back in a new process. Run
+`/hud` to open it again. Below 144 terminal columns, a pane that opens by itself
+stays open but isn't drawn until the window is wider. `/hud` draws it from 110
+columns.
 
 ## What the pane shows
 
