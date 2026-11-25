@@ -202,8 +202,9 @@ Take a finished change from "done writing code" to "ready to merge" in one step.
 
 Run `/land` (or `/ship:ship`) in Claude Code, invoke `$ship` in Codex, or say
 “ship it” after finishing a task. `/land` is an alias that sidesteps Claude
-Code's built-in `/ship` in command autocomplete. It works these steps in order, adapting to the host and the
-optional helper skills installed in the current session:
+Code's built-in `/ship` in command autocomplete. It works these steps in order,
+adapting to the host and the optional helper skills installed in the current
+session:
 
 1. **Rebase** — brings the change up to date with its base first, via `rebase`
    (below), so everything after it checks the change as it will land.
